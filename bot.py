@@ -1,4 +1,4 @@
-import os
+Import os
 import json
 import logging
 import random
@@ -29,10 +29,22 @@ ADMIN_ID = 5351353727
 TICKET_PRICE = 1000
 TARGET_DATETIME = None 
 
-# --- የሽልማት መጠኖች (Variables) - አድሚኑ መቀየር እንዲችል ---
-PRIZE_1ST = "2,000,000 ብር (ሁለት ሚሊዮን ብር)"
-PRIZE_2ND = "200,000 ብር (ሁለት መቶ ሺህ ብር)"
-PRIZE_3RD = "50,000 ብር (ሃምሳ ሺህ ብር)"
+# --- የሽልማት መጠኖች (ዳይናሚክ የዋጋ ዝርዝር) ---
+# መሠረታዊ ሬሾ፡ 1000 ብር ሲሆን -> 1ኛ 2,000,000 | 2ኛ 200,000 | 3ኛ 50,000
+def get_prize_1st():
+    ratio = TICKET_PRICE / 1000.0
+    val = int(2000000 * ratio)
+    return f"{val:,} ብር"
+
+def get_prize_2nd():
+    ratio = TICKET_PRICE / 1000.0
+    val = int(200000 * ratio)
+    return f"{val:,} ብር"
+
+def get_prize_3rd():
+    ratio = TICKET_PRICE / 1000.0
+    val = int(50000 * ratio)
+    return f"{val:,} ብር"
 
 # አውቶማቲክ ማሳወቂያ የሚለቀቅበት የቴሌግራም ቻናል ዩዘርናሜ
 CHANNEL_USERNAME = "@Gashaye_Lottery_Channel"
@@ -89,7 +101,8 @@ registered_users = load_users()
 all_user_details = load_user_details()
 
 CITIES = ["አዲስ አበባ", "ሀዋሳ", "አዳማ", "ባህር ዳር", "ድሬዳዋ", "ጂማ", "መቀሌ"]
-NAME, PHONE, CITY, PICKING, WAITING_RECEIPT = range(5)
+# Conversations States: NAME, PHONE, CITY, OTHER_CITY, PICKING, WAITING_RECEIPT
+NAME, PHONE, CITY, OTHER_CITY, PICKING, WAITING_RECEIPT = range(6)
 
 BANK_DETAILS = (
     "የባንክ ዝርዝሮቻችን (ለመቅዳት ይጫኑ):\n\n"
@@ -107,6 +120,7 @@ LANG_TEXTS = {
         "phone_prompt": "ስልክ ቁጥርዎን ያስገቡ (ለምሳሌ: 09XXXXXXXX ወይም 07XXXXXXXX):",
         "phone_error": "❌ ስልክ ቁጥርዎ ትክክል አይደለም!\nእባክዎ በ **09** ወይም በ **07** የሚጀምር ትክክለኛ የኢትዮጵያ ስልክ ቁጥር ያስገቡ:",
         "city_prompt": "ከተማዎን ይምረጡ:",
+        "other_city_prompt": "እባክዎ የከተማዎን/ቦታዎን ስም በጽሁፍ ይጻፉ:",
         "done_btn": "✅ የተቆረጠ ምርጫ ጨርስ",
         "taken": "ይህ ቁጥር ተይዟል!",
         "min_one": "እባክዎ ቢያንስ አንድ ቁጥር ይምረጡ!",
@@ -120,6 +134,7 @@ LANG_TEXTS = {
         "phone_prompt": "Enter your phone number (e.g., 09XXXXXXXX or 07XXXXXXXX):",
         "phone_error": "❌ Invalid phone number!\nPlease enter a valid Ethiopian phone number starting with **09** or **07**:",
         "city_prompt": "Select your city:",
+        "other_city_prompt": "Please type your city/location name:",
         "done_btn": "✅ Finish Selection",
         "taken": "This number is already taken!",
         "min_one": "Please select at least one number!",
@@ -169,9 +184,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🌟🎰 **እንኳን ወደ 'ጋሻዬ ሎተሪ' አዲስ ዙር በደህና መጡ!** 🎰🌟\n\n"
         f"🎟️ **በ {TICKET_PRICE:,} ብር ብቻ አሸናፊ ይሁኑ!**\n\n"
         "🏆 **የሽልማት ዝርዝር፦**\n"
-        f"🥇 **1ኛ ዕጣ:** {PRIZE_1ST}\n"
-        f"🥈 **2ኛ ዕጣ:** {PRIZE_2ND}\n"
-        f"🥉 **3ኛ ዕጣ:** {PRIZE_3RD}\n\n"
+        f"🥇 **1ኛ ዕጣ:** {get_prize_1st()}\n"
+        f"🥈 **2ኛ ዕጣ:** {get_prize_2nd()}\n"
+        f"🥉 **3ኛ ዕጣ:** {get_prize_3rd()}\n\n"
         "👇 እባክዎ ለመቀጠል የሚፈልጉትን ቋንቋ ይምረጡ / Please choose your language:"
     )
     
@@ -207,9 +222,9 @@ async def set_language(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "🌟🎰 **እንኳን ወደ 'ጋሻዬ ሎተሪ' ቦት በደህና መጡ!** 🎰🌟\n\n"
         f"🎟️ **በ {TICKET_PRICE:,} ብር ብቻ አሸናፊ ይሁኑ!**\n\n"
         "🏆 **የሽልማት ዝርዝር፦**\n"
-        f"🥇 **1ኛ ዕጣ:** {PRIZE_1ST}\n"
-        f"🥈 **2ኛ ዕጣ:** {PRIZE_2ND}\n"
-        f"🥉 **3ኛ ዕጣ:** {PRIZE_3RD}\n\n"
+        f"🥇 **1ኛ ዕጣ:** {get_prize_1st()}\n"
+        f"🥈 **2ኛ ዕጣ:** {get_prize_2nd()}\n"
+        f"🥉 **3ኛ ዕጣ:** {get_prize_3rd()}\n\n"
         "👇 ከታች ያለውን አዝራር በመጫን አሁን የሎተሪ ቁጥርዎን ይምረጡ!"
     )
     btn_text = get_text(user_id, "btn_reg")
@@ -228,7 +243,14 @@ async def set_price(update, context):
     if update.effective_user.id == ADMIN_ID:
         try:
             TICKET_PRICE = int(context.args[0])
-            await update.message.reply_text(f"✅ የቲኬት ዋጋ ወደ {TICKET_PRICE} ብር ተቀይሯል።")
+            await update.message.reply_text(
+                f"✅ የቲኬት ዋጋ ወደ **{TICKET_PRICE:,} ብር** ተቀይሯል።\n"
+                f"ሽልማቶችም በዚሁ መሰረት አውቶማቲካሊ ተስተካክለዋል:\n"
+                f"🥇 1ኛ: {get_prize_1st()}\n"
+                f"🥈 2ኛ: {get_prize_2nd()}\n"
+                f"🥉 3ኛ: {get_prize_3rd()}",
+                parse_mode='Markdown'
+            )
         except (IndexError, ValueError):
             await update.message.reply_text("❌ እባክዎ ትክክለኛ ዋጋ ያስገቡ። (ምሳሌ: /setprice 500)")
 
@@ -267,14 +289,14 @@ async def set_date(update, context):
 async def check_stats(update, context):
     if update.effective_user.id == ADMIN_ID:
         total_sold = len(occupied_numbers)
-        total_remaining = 10000 - total_sold
+        total_remaining = 4000 - total_sold
         total_revenue = total_sold * TICKET_PRICE
         await update.message.reply_text(
             f"📊 **የሎተሪ ሽያጭ መረጃ:**\n\n"
-            f"🎫 የተሸጡ/የተያዙ ቲኬቶች: **{total_sold}**\n"
+            f"🎫 የተሸጡ/የተያዙ ቲኬቶች: **{total_sold}** (ከ 4000)\n"
             f"ቁጥሮች የቀሩት ብዛት: **{total_remaining}**\n"
             f"💰 ጠቅላላ ገቢ: **{total_revenue:,} ብር**\n"
-            f"💵 የአንድ ቲኬት ዋጋ: **{TICKET_PRICE} ብር**\n"
+            f"💵 የአንድ ቲኬት ዋጋ: **{TICKET_PRICE:,} ብር**\n"
             f"👥 የተመዘገቡ ተጠቃሚዎች: **{len(registered_users)}**\n"
             f"🚫 የታገዱ (Blocked) ተጠቃሚዎች: **{len(blocked_users)}**",
             parse_mode='Markdown'
@@ -311,9 +333,9 @@ async def draw_logtery(update: Update, context: ContextTypes.DEFAULT_TYPE):
             return
         
         confirm_kb = [
-            [InlineKeyboardButton(f"🥇 1ኛ ዕጣ ({PRIZE_1ST})", callback_data="draw_tier_1")],
-            [InlineKeyboardButton(f"🥈 2ኛ ዕጣ ({PRIZE_2ND})", callback_data="draw_tier_2")],
-            [InlineKeyboardButton(f"🥉 3ኛ ዕጣ ({PRIZE_3RD})", callback_data="draw_tier_3")],
+            [InlineKeyboardButton(f"🥇 1ኛ ዕጣ ({get_prize_1st()})", callback_data="draw_tier_1")],
+            [InlineKeyboardButton(f"🥈 2ኛ ዕጣ ({get_prize_2nd()})", callback_data="draw_tier_2")],
+            [InlineKeyboardButton(f"🥉 3ኛ ዕጣ ({get_prize_3rd()})", callback_data="draw_tier_3")],
             [InlineKeyboardButton("❌ ተው/ይቅር", callback_data="confirm_draw_no")]
         ]
         await update.message.reply_text(
@@ -341,15 +363,15 @@ async def handle_draw_confirmation(update: Update, context: ContextTypes.DEFAULT
         
         if tier_key == "1":
             tier_name = "🥇 1ኛ ደረጃ ዕጣ"
-            amount_text = PRIZE_1ST
+            amount_text = get_prize_1st()
             internal_tier = "1st"
         elif tier_key == "2":
             tier_name = "🥈 2ኛ ደረጃ ዕጣ"
-            amount_text = PRIZE_2ND
+            amount_text = get_prize_2nd()
             internal_tier = "2nd"
         else:
             tier_name = "🥉 3ኛ ደረጃ ዕጣ"
-            amount_text = PRIZE_3RD
+            amount_text = get_prize_3rd()
             internal_tier = "3rd"
             
         available_numbers = {num: uid for num, uid in occupied_numbers.items() if num not in drawn_winners.values()}
@@ -448,7 +470,7 @@ async def handle_draw_confirmation(update: Update, context: ContextTypes.DEFAULT
                 f"🏆 የዚህ ዙር ዕድለኛ ቁጥር **{winning_number}** ሆኗል!\n"
                 f"👤 ስም: *{winner_name}* ({winner_city})\n"
                 f"💰 ያሸነፈው ሽልማት: **{amount_text}**\n\n"
-                f"✨ ዕድለኛውን ተሳታፊ ከልብ和መሰግናለን! ቀጣይ አዲስ ዙር ተጀምሯል!"
+                f"✨ ዕድለኛውን ተሳታፊ ከልብ እናመሰግናለን! ቀጣይ አዲስ ዙር ተጀምሯል!"
             )
             await context.bot.send_message(CHANNEL_USERNAME, channel_announcement, parse_mode='Markdown', reply_markup=channel_draw_kb)
         except Exception as e:
@@ -509,9 +531,9 @@ async def handle_restart_button(update: Update, context: ContextTypes.DEFAULT_TY
         "🌟🎰 **እንኳን ወደ 'ጋሻዬ ሎተሪ' አዲስ ዙር በደህና መጡ!** 🎰🌟\n\n"
         f"🎟️ **በ {TICKET_PRICE:,} ብር ብቻ አሸናፊ ይሁኑ!**\n\n"
         "🏆 **የሽልማት ዝርዝር፦**\n"
-        f"🥇 **1ኛ ዕጣ:** {PRIZE_1ST}\n"
-        f"🥈 **2ኛ ዕጣ:** {PRIZE_2ND}\n"
-        f"🥉 **3ኛ ዕጣ:** {PRIZE_3RD}\n\n"
+        f"🥇 **1ኛ ዕጣ:** {get_prize_1st()}\n"
+        f"🥈 **2ኛ ዕጣ:** {get_prize_2nd()}\n"
+        f"🥉 **3ኛ ዕጣ:** {get_prize_3rd()}\n\n"
         "👇 እባክዎ ለመቀጠል የሚፈልጉትን ቋንቋ ይምረጡ / Please choose your language:"
     )
     
@@ -549,15 +571,25 @@ async def get_phone(update, context):
         return PHONE
 
     context.user_data['phone'] = phone_text
+    
     kb = [[InlineKeyboardButton(c, callback_data=f"city_{c}")] for c in CITIES]
+    other_btn_text = "ሌላ (Other)" if user_languages.get(user_id, "am") == "am" else "Other (ሌላ)"
+    kb.append([InlineKeyboardButton(other_btn_text, callback_data="city_Other")])
+    
     await update.message.reply_text(get_text(user_id, "city_prompt"), reply_markup=InlineKeyboardMarkup(kb))
     return CITY
 
 async def get_city(update, context):
     query = update.callback_query
     await query.answer()
-    context.user_data['city'] = query.data.split("_")[1]
+    selected_city = query.data.split("_", 1)[1]
     user_id = update.effective_user.id
+    
+    if selected_city == "Other":
+        await query.message.edit_text(get_text(user_id, "other_city_prompt"))
+        return OTHER_CITY
+    
+    context.user_data['city'] = selected_city
     
     all_user_details[user_id] = {
         "name": context.user_data.get('name'),
@@ -570,19 +602,40 @@ async def get_city(update, context):
         user_selections[user_id] = []
     return await show_numbers_page(update, context)
 
-async def show_numbers_page(update, context, page=0):
+async def get_other_city(update, context):
+    user_id = update.effective_user.id
+    other_city_name = update.message.text.strip()
+    
+    context.user_data['city'] = other_city_name
+    
+    all_user_details[user_id] = {
+        "name": context.user_data.get('name'),
+        "phone": context.user_data.get('phone'),
+        "city": context.user_data.get('city')
+    }
+    save_user_details()
+
+    if user_id not in user_selections:
+        user_selections[user_id] = []
+    
+    return await show_numbers_page_message(update, context)
+
+async def show_numbers_page_message(update, context, page=0):
     start_num = page * 100 + 1
-    end_num = min(start_num + 99, 10000)
+    end_num = min(start_num + 99, 4000)
     keyboard = []
     row = []
     user_id = update.effective_user.id
     my_nums = user_selections.get(user_id, [])
 
     for i in range(start_num, end_num + 2):
+        if i > 4000:
+            break
+            
         if i in my_nums:
             text = f"✅ {i}"
         elif i in occupied_numbers:
-            text = f"⭐ {i}" # የተያዘ ቁጥር ምልክት ተስተካክሏል
+            text = "⭐"
         else:
             text = str(i)
             
@@ -595,8 +648,47 @@ async def show_numbers_page(update, context, page=0):
     
     nav = []
     if page > 0: nav.append(InlineKeyboardButton("⬅️ Back", callback_data=f"page_{page-1}"))
-    nav.append(InlineKeyboardButton(f"ገጽ {page+1} (1-100)", callback_data="ignore"))
-    if end_num < 10000: nav.append(InlineKeyboardButton("➡️ Next", callback_data=f"page_{page+1}"))
+    nav.append(InlineKeyboardButton(f"ገጽ {page+1} (1-4000)", callback_data="ignore"))
+    if end_num < 4000: nav.append(InlineKeyboardButton("➡️ Next", callback_data=f"page_{page+1}"))
+    keyboard.append(nav)
+    
+    done_text = get_text(user_id, "done_btn")
+    keyboard.append([InlineKeyboardButton(done_text, callback_data="done")])
+    
+    msg = get_text(user_id, "choose_num", start=start_num, end=end_num)
+    await update.message.reply_text(msg, reply_markup=InlineKeyboardMarkup(keyboard))
+    return PICKING
+
+async def show_numbers_page(update, context, page=0):
+    start_num = page * 100 + 1
+    end_num = min(start_num + 99, 4000)
+    keyboard = []
+    row = []
+    user_id = update.effective_user.id
+    my_nums = user_selections.get(user_id, [])
+
+    for i in range(start_num, end_num + 2):
+        if i > 4000:
+            break
+            
+        if i in my_nums:
+            text = f"✅ {i}"
+        elif i in occupied_numbers:
+            text = "⭐"
+        else:
+            text = str(i)
+            
+        row.append(InlineKeyboardButton(text, callback_data=f"sel_{i}"))
+        if len(row) == 10: 
+            keyboard.append(row)
+            row = []
+    if row: 
+        keyboard.append(row)
+    
+    nav = []
+    if page > 0: nav.append(InlineKeyboardButton("⬅️ Back", callback_data=f"page_{page-1}"))
+    nav.append(InlineKeyboardButton(f"ገጽ {page+1} (1-4000)", callback_data="ignore"))
+    if end_num < 4000: nav.append(InlineKeyboardButton("➡️ Next", callback_data=f"page_{page+1}"))
     keyboard.append(nav)
     
     done_text = get_text(user_id, "done_btn")
@@ -628,6 +720,9 @@ async def handle_selection(update, context):
         await show_numbers_page(update, context, int(query.data.split("_")[1]))
     elif query.data.startswith("sel_"):
         num = int(query.data.split("_")[1])
+        if num > 4000:
+            await query.answer("ይህ ቦት የሚፈቅደው እስከ 4000 ቲኬት ብቻ ነው!", show_alert=True)
+            return
         
         if num in user_selections[user_id]:
             user_selections[user_id].remove(num)
@@ -865,6 +960,10 @@ if __name__ == '__main__':
             ], 
             CITY: [
                 CallbackQueryHandler(get_city, pattern="city_"),
+                CommandHandler("start", start)
+            ],
+            OTHER_CITY: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, get_other_city),
                 CommandHandler("start", start)
             ],
             PICKING: [
