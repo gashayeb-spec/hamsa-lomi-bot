@@ -30,7 +30,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             "cycle_count": 0
         }
         
-        # ጋባዥ ካለ ወደ እሱ ስር እንጨምራለን
         if referred_by_id and referred_by_id in users_db:
             if len(users_db[referred_by_id]["downlines"]) < 10:
                 users_db[referred_by_id]["downlines"].append(user.id)
@@ -61,7 +60,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         users_db[user.id]["status"] = "pending_approval"
         msg = (
             "💳 **የክፍያ ማረጋገጫ (Payment Submission):**\n\n"
-            "እባክዎ የክፍያ መረጃዎን (የግብይት ቁጥር ወይም የባንክ ስክሪንሾት) በቀጥታ በዚህ ቦት ቻት ውስጥ ይጻፉ/ይላኩ።\n"
+            "እባክዎ የክፍያ መረጃዎን (የግብይት ቁጥር ወይም የባንክ ስክሪንሾት) በቀጥታ በዚህ ቦት ቻት ውስጥ ይጻፉ/ይላቁ።\n"
             "ሲስተሙ ለጋባዥዎ እና ለአስተዳዳሪው በራስ-ሰር ያስተላልፋል!"
         )
         await query.message.edit_text(msg, parse_mode="Markdown")
@@ -88,7 +87,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         )
         
     elif data.startswith("fwd_admin_"):
-        # ጋባዡ በቀጥታ ለአድሚን ማስተላለፊያ ቁልፍ ሲነካ
         target_user_id = int(data.split("_")[2])
         await query.message.edit_text(f"✅ የዚህ ተጠቃሚ (ID: {target_user_id}) የክፍያ ማረጋገጫ ለአስተዳዳሪው (Admin) ተልኳል!")
         
@@ -97,7 +95,6 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         if target_user_id in users_db:
             users_db[target_user_id]["status"] = "active"
             
-            # 10 ሰው ሲሞላ ሳይክሉን ማስተካከል
             parent_id = users_db[target_user_id].get("referred_by")
             if parent_id and parent_id in users_db:
                 if len(users_db[parent_id]["downlines"]) >= 10:
@@ -117,7 +114,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     if user.id in users_db and users_db[user.id]["status"] == "pending_approval":
         referred_by = users_db[user.id].get("referred_by")
         
-        # 1. ሪፖርቱን ለጋባዡ ማሳወቅ (ጋባዡ ኮሚሽኑን ቆርጦ ለአድሚን እንዲያስተላልፍ)
         if referred_by and referred_by in users_db:
             referrer_keyboard = [
                 [InlineKeyboardButton("📤 ኮሚሽን ቆርጠህ ለአድሚን ላክ (One-Click)", callback_data=f"fwd_admin_{user.id}")]
@@ -138,7 +134,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 
         await update.message.reply_text("⏳ የክፍያ ማረጋገጫዎ ለጋባዥዎ እና ለአድሚን ተልኳል፤ ሲረጋገጥ ይነገራል።")
 
-def main() -> None:
+def main() ->none:
     application = Application.builder().token(TOKEN).build()
 
     application.add_handler(CommandHandler("start", start))
