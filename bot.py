@@ -150,7 +150,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         u_data = users_db.get(user.id, {"status": "unpaid", "balance": 0.0})
         profile_text = (
             f"👤 **የመገለጫ መረጃዎ:**\n\n"
-            f"• ስም: {user.first_name}\n"
+            f• ስም: {user.first_name}\n"
             f"• ሁኔታ: `{u_data['status']}`\n"
             f"• ቀሪ ሂሳብ: **{u_data['balance']} ብር**"
         )
@@ -164,7 +164,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await query.message.edit_text(f"🔗 **የእርስዎ ማስተዋወቂያ ሊንክ:**\n\n`{ref_link}`", reply_markup=InlineKeyboardMarkup(back_keyboard))
 
 def main() -> None:
-    # Start Flask server in a separate thread so Render stays happy
+    # Start Flask server in a separate thread for Render
     t = threading.Thread(target=run_flask)
     t.daemon = True
     t.start()
@@ -173,7 +173,7 @@ def main() -> None:
     application = Application.builder().token(TOKEN).build()
 
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(CallbackQueryGraphHandler(button_handler) if "CallbackQueryGraphHandler" in globals() else CallbackQueryHandler(button_handler))
+    application.add_handler(CallbackQueryHandler(button_handler))
 
     logger.info("CBE & Telebirr Integrated HamsaLomi Bot is running...")
     application.run_polling(allowed_updates=Update.ALL_TYPES)
