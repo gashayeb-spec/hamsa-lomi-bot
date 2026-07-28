@@ -134,7 +134,8 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 
         await update.message.reply_text("⏳ የክፍያ ማረጋገጫዎ ለጋባዥዎ እና ለአድሚን ተልኳል፤ ሲረጋገጥ ይነገራል።")
 
-def main() ->none:
+def main() -> None:
+    # Build application using the modern v20+ standard
     application = Application.builder().token(TOKEN).build()
 
     application.add_handler(CommandHandler("start", start))
@@ -142,7 +143,8 @@ def main() ->none:
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     logger.info("Advanced HamsaLomi Bot is running...")
-    application.run_polling()
+    # Correct method to start polling in modern python-telegram-bot
+    application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 if __name__ == "__main__":
     main()
