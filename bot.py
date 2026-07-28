@@ -1,5 +1,7 @@
 import logging
 import requests
+import threading
+from flask import Flask
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 
@@ -20,6 +22,16 @@ TELEBIRR_PHONE = "0916039015"
 
 # Database simulation
 users_db = {}
+
+# --- FLASK WEB SERVER FOR RENDER KEEP-ALIVE ---
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "HamsaLomi Bot is active and running!"
+
+def run_flask():
+    app.run(host="0.0.0.0", port=10000)
 
 # --- START COMMAND ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -152,10 +164,16 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await query.message.edit_text(f"🔗 **የእርስዎ ማስተዋወቂያ ሊንክ:**\n\n`{ref_link}`", reply_markup=InlineKeyboardMarkup(back_keyboard))
 
 def main() -> None:
+    # Start Flask server in a separate thread so Render stays happy
+    t = threading.Thread(target=run_flask)
+    t.daemon = True
+    t.start()
+
+    # Build Telegram Bot application
     application = Application.builder().token(TOKEN).build()
 
     application.add_handler(CommandHandler("start", start))
-    application.add_handler(CallbackQueryHandler(button_handler))
+    application.add_handler(CallbackQueryGraphHandler(button_handler) if "CallbackQueryGraphHandler" in globals() else CallbackQueryHandler(button_handler))
 
     logger.info("CBE & Telebirr Integrated HamsaLomi Bot is running...")
     application.run_polling(allowed_updates=Update.ALL_TYPES)
