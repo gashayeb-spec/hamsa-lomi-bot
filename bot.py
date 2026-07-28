@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 # --- CONFIGURATION ---
 TOKEN = "8909326861:AAGYvN77tgE2-rQK_Gq8F-s35AfC59GaBgA"
 CHAPA_PUBLIC_KEY = "CHAPUBK-hLBEJPiKDlRpfBCqTczyE1OsnrrK3Zhj"
-CHAPA_SECRET_KEY = "CHASECK_TEST-xxxxxxxxxxxxxxxx"
+CHAPA_SECRET_KEY = "CHASECK-SncZN81Mx80yQcPiXJwRXDF6MdgchtNV"
 CHAPA_URL = "https://api.chapa.co/v1/transaction/initialize"
 
 # Business Payment Details
