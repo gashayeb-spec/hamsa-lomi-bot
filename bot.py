@@ -66,7 +66,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     
     welcome_text = (
         f"ሰላም **{user.first_name}**! ወደ ሐምሳሎሚ አውቶማቲክ ሲስተም እንኳን በደህና መጡ።\n\n"
-        f"እባክዎ ከታች ከሚገኙት የክፍያ አማራጮች አንዱን በመምረጥ ክፍያዎን ይፈጽሙ!"
+        f"📢 **ልዩ የግብዣ እና የኮሚሽን ስራ (Pyramid & Referral System)!**\n"
+        f"ሰዎችን ወደዚህ ሲስተም በመጋበዝ እና ከታችዎ በማሰለፍ አስደናቂ ኮሚሽኖችን እና ሽልማቶችን ያግኙ! "
+        f"እያንዳንዱ ተጠቃሚ የራሱን ሊንክ በማስፋት ከስሩ ያሉትን ማስተዳደር ይችላል።\n\n"
+        f"እባክዎ ከታች ከሚገኙት የክፍያ አማራጮች አንዱን በመምረጥ አውቶማቲክ ክፍያዎን ይፈጽሙ!"
     )
     
     await update.message.reply_text(welcome_text, reply_markup=reply_markup, parse_mode="Markdown")
@@ -82,21 +85,25 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         cbe_text = (
             f"🏦 የንግድ ባንክ (CBE) አካውንት መረጃ:\n\n"
             f"- ስም: {CBE_NAME}\n"
-            f"- አካውንት ቁጥር: {CBE_ACCOUNT}\n\n"
-            f"ይህንን ቁጥር በመንካት (ኮፒ በማድረግ) በባንክ መተግበሪያዎ ክፍያውን ፈጽመው ስክሪንሾቱን ይላኩ!"
+            f"- አካውንት ቁጥር: `{CBE_ACCOUNT}`\n\n"
+            f"ይህንን ቁጥር ነክተው ኮፒ በማድረግ በባንክ መተግበሪያዎ ክፍያውን መፈጸም ይችላሉ።"
         )
         back_keyboard = [[InlineKeyboardButton("🔙 ወደ ዋናው ምናሌ ተመለስ", callback_data="main_menu")]]
-        await query.message.edit_text(cbe_text, reply_markup=InlineKeyboardMarkup(back_keyboard))
+        await query.message.edit_text(cbe_text, reply_markup=InlineKeyboardMarkup(back_keyboard), parse_mode="Markdown")
         
     elif data == "view_telebirr":
         tele_text = (
             f"📱 ቴሌብር (Telebirr) መረጃ:\n\n"
             f"- ስም: {CBE_NAME}\n"
-            f"- ስልክ ቁጥር: {TELEBIRR_PHONE}\n\n"
-            f"ይህንን ቁጥር በመንካት በቴሌብር መተግበሪያዎ በኩል ክፍያውን መፈጸም ይችላሉ!"
+            f"- ስልክ ቁጥር: `{TELEBIRR_PHONE}`\n\n"
+            f"ይህንን ስልክ ቁጥር በመንካት በቀጥታ ወደ ቴሌብር መተግበሪያዎ በመሄድ ክፍያ መፈጸም ይችላሉ!"
         )
-        back_keyboard = [[InlineKeyboardButton("🔙 ወደ ዋናው ምናሌ ተመለስ", callback_data="main_menu")]]
-        await query.message.edit_text(tele_text, reply_markup=InlineKeyboardMarkup(back_keyboard))
+        # ቴሌብር ቁጥሩን በቀጥታ የሚከፍትበት ሊንክ (tel:)
+        tele_keyboard = [
+            [InlineKeyboardButton("📱 ቴሌብር መተግበሪያን ይክፈቱ", url=f"tel:{TELEBIRR_PHONE}")],
+            [InlineKeyboardButton("🔙 ወደ ዋናው ምናሌ ተመለስ", callback_data="main_menu")]
+        ]
+        await query.message.edit_text(tele_text, reply_markup=InlineKeyboardMarkup(tele_keyboard), parse_mode="Markdown")
 
     elif data == "main_menu":
         keyboard = [
@@ -137,11 +144,11 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                     [InlineKeyboardButton("🔙 ተመለስ", callback_data="main_menu")]
                 ]
                 await query.message.edit_text(
-                    "💳 የክፍያ ሊንክዎ ተዘጋጅቷል!\n\nከታች ባለው ሊንክ በመግባት በባንክ ወይም በቴሌብር አውቶማቲክ ክፍያዎን ማጠናቀቅ ይችላሉ።",
+                    "💳 የክፍያ ሊንክዎ አውቶማቲክ ተዘጋጅቷል!\n\nከታች ባለው ሊንክ በመግባት በቻፓ ጌትዌይ (Chapa Gateway) በኩል ክፍያዎን ወዲያውኑ ማጠናቀቅ ይችላሉ።",
                     reply_markup=InlineKeyboardMarkup(pay_keyboard)
                 )
             else:
-                await query.message.edit_text("❌ የክፍያ ሊንክ ማመንጨት አልተቻለም። እባክዎ በባንክ ቁጥራችን በቀጥታ ይክፈሉ።")
+                await query.message.edit_text("❌ የክፍያ ሊንክ ማመንጨት አልተቻለም። እባክዎ እንደገና ይሞክሩ።")
         except Exception as e:
             logger.error(f"Chapa Error: {e}")
             await query.message.edit_text("❌ ከክፍያ ሲስተም ጋር ግንኙነት መፍጠር አልተቻለም።")
@@ -161,7 +168,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         bot_username = context.bot.username
         ref_link = f"https://t.me/{bot_username}?start={user.id}"
         back_keyboard = [[InlineKeyboardButton("🔙 ተመለስ", callback_data="main_menu")]]
-        await query.message.edit_text(f"🔗 የእርስዎ ማስተዋወቂያ ሊንክ:\n\n{ref_link}", reply_markup=InlineKeyboardMarkup(back_keyboard))
+        await query.message.edit_text(f"🔗 የእርስዎ ማስተዋወቂያ ሊንክ:\n\n`{ref_link}`", reply_markup=InlineKeyboardMarkup(back_keyboard), parse_mode="Markdown")
 
 async def run_bot():
     application = Application.builder().token(TOKEN).build()
@@ -171,22 +178,18 @@ async def run_bot():
 
     logger.info("CBE & Telebirr Integrated HamsaLomi Bot is running...")
     
-    # Proper async lifecycle management for Render
     await application.initialize()
     await application.start()
     await application.updater.start_polling(allowed_updates=Update.ALL_TYPES)
     
-    # Keep running
     stop_event = asyncio.Event()
     await stop_event.wait()
 
 def main() -> None:
-    # Start Flask server in a separate thread
     t = threading.Thread(target=run_flask)
     t.daemon = True
     t.start()
 
-    # Run Telegram bot with proper event loop
     asyncio.run(run_bot())
 
 if __name__ == "__main__":
