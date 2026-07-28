@@ -1,6 +1,7 @@
 import logging
 import requests
 import threading
+import asyncio
 from flask import Flask
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
@@ -12,7 +13,7 @@ logger = logging.getLogger(__name__)
 # --- CONFIGURATION ---
 TOKEN = "8909326861:AAGYvN77tgE2-rQK_Gq8F-s35AfC59GaBgA"
 CHAPA_PUBLIC_KEY = "CHAPUBK-hLBEJPiKDlRpfBCqTczyE1OsnrrK3Zhj"
-CHAPA_SECRET_KEY = "CHASECK_TEST-xxxxxxxxxxxxxxxx"  # የራስዎን የቺፓ ሰክሬት ኪ እዚህ ያስገቡ
+CHAPA_SECRET_KEY = "CHASECK_TEST-xxxxxxxxxxxxxxxx"
 CHAPA_URL = "https://api.chapa.co/v1/transaction/initialize"
 
 # Business Payment Details
@@ -162,18 +163,31 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         back_keyboard = [[InlineKeyboardButton("🔙 ተመለስ", callback_data="main_menu")]]
         await query.message.edit_text(f"🔗 የእርስዎ ማስተዋወቂያ ሊንክ:\n\n{ref_link}", reply_markup=InlineKeyboardMarkup(back_keyboard))
 
-def main() -> None:
-    t = threading.Thread(target=run_flask)
-    t.daemon = True
-    t.start()
-
+async def run_bot():
     application = Application.builder().token(TOKEN).build()
 
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CallbackQueryHandler(button_handler))
 
     logger.info("CBE & Telebirr Integrated HamsaLomi Bot is running...")
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+    
+    # Proper async lifecycle management for Render
+    await application.initialize()
+    await application.start()
+    await application.updater.start_polling(allowed_updates=Update.ALL_TYPES)
+    
+    # Keep running
+    stop_event = asyncio.Event()
+    await stop_event.wait()
+
+def main() -> None:
+    # Start Flask server in a separate thread
+    t = threading.Thread(target=run_flask)
+    t.daemon = True
+    t.start()
+
+    # Run Telegram bot with proper event loop
+    asyncio.run(run_bot())
 
 if __name__ == "__main__":
     main()
