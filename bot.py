@@ -79,23 +79,23 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     
     if data == "view_cbe":
         cbe_text = (
-            f"🏦 **የንግድ ባንክ (CBE) አካውንት መረጃ:**\n\n"
-            f"• ስም: `{CBE_NAME}`\n"
-            f"• አካውንት ቁጥር: `{CBE_ACCOUNT}`\n\n"
+            f"🏦 የንግድ ባንክ (CBE) አካውንት መረጃ:\n\n"
+            f"- ስም: {CBE_NAME}\n"
+            f"- አካውንት ቁጥር: {CBE_ACCOUNT}\n\n"
             f"ይህንን ቁጥር በመንካት (ኮፒ በማድረግ) በባንክ መተግበሪያዎ ክፍያውን ፈጽመው ስክሪንሾቱን ይላኩ!"
         )
         back_keyboard = [[InlineKeyboardButton("🔙 ወደ ዋናው ምናሌ ተመለስ", callback_data="main_menu")]]
-        await query.message.edit_text(cbe_text, reply_markup=InlineKeyboardMarkup(back_keyboard), parse_mode="Markdown")
+        await query.message.edit_text(cbe_text, reply_markup=InlineKeyboardMarkup(back_keyboard))
         
     elif data == "view_telebirr":
         tele_text = (
-            f"📱 **ቴሌብር (Telebirr) መረጃ:**\n\n"
-            f"• ስም: `{CBE_NAME}`\n"
-            f"• ስልክ ቁጥር: `{TELEBIRR_PHONE}`\n\n"
+            f"📱 ቴሌብር (Telebirr) መረጃ:\n\n"
+            f"- ስም: {CBE_NAME}\n"
+            f"- ስልክ ቁጥር: {TELEBIRR_PHONE}\n\n"
             f"ይህንን ቁጥር በመንካት በቴሌብር መተግበሪያዎ በኩል ክፍያውን መፈጸም ይችላሉ!"
         )
         back_keyboard = [[InlineKeyboardButton("🔙 ወደ ዋናው ምናሌ ተመለስ", callback_data="main_menu")]]
-        await query.message.edit_text(tele_text, reply_markup=InlineKeyboardMarkup(back_keyboard), parse_mode="Markdown")
+        await query.message.edit_text(tele_text, reply_markup=InlineKeyboardMarkup(back_keyboard))
 
     elif data == "main_menu":
         keyboard = [
@@ -136,9 +136,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                     [InlineKeyboardButton("🔙 ተመለስ", callback_data="main_menu")]
                 ]
                 await query.message.edit_text(
-                    "💳 **የክፍያ ሊንክዎ ተዘጋጅቷል!**\n\nከታች ባለው ሊንክ በመግባት በባንክ ወይም በቴሌብር አውቶማቲክ ክፍያዎን ማጠናቀቅ ይችላሉ።",
-                    reply_markup=InlineKeyboardMarkup(pay_keyboard),
-                    parse_mode="Markdown"
+                    "💳 የክፍያ ሊንክዎ ተዘጋጅቷል!\n\nከታች ባለው ሊንክ በመግባት በባንክ ወይም በቴሌብር አውቶማቲክ ክፍያዎን ማጠናቀቅ ይችላሉ።",
+                    reply_markup=InlineKeyboardMarkup(pay_keyboard)
                 )
             else:
                 await query.message.edit_text("❌ የክፍያ ሊንክ ማመንጨት አልተቻለም። እባክዎ በባንክ ቁጥራችን በቀጥታ ይክፈሉ።")
@@ -149,27 +148,25 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     elif data == "profile":
         u_data = users_db.get(user.id, {"status": "unpaid", "balance": 0.0})
         profile_text = (
-            f"👤 **የመገለጫ መረጃዎ:**\n\n"
-            f• ስም: {user.first_name}\n"
-            f"• ሁኔታ: `{u_data['status']}`\n"
-            f"• ቀሪ ሂሳብ: **{u_data['balance']} ብር**"
+            f"👤 የመገለጫ መረጃዎ:\n\n"
+            f"- ስም: {user.first_name}\n"
+            f"- ሁኔታ: {u_data['status']}\n"
+            f"- ቀሪ ሂሳብ: {u_data['balance']} ብር"
         )
         back_keyboard = [[InlineKeyboardButton("🔙 ተመለስ", callback_data="main_menu")]]
-        await query.message.edit_text(profile_text, reply_markup=InlineKeyboardMarkup(back_keyboard), parse_mode="Markdown")
+        await query.message.edit_text(profile_text, reply_markup=InlineKeyboardMarkup(back_keyboard))
         
     elif data == "mylink":
         bot_username = context.bot.username
         ref_link = f"https://t.me/{bot_username}?start={user.id}"
         back_keyboard = [[InlineKeyboardButton("🔙 ተመለስ", callback_data="main_menu")]]
-        await query.message.edit_text(f"🔗 **የእርስዎ ማስተዋወቂያ ሊንክ:**\n\n`{ref_link}`", reply_markup=InlineKeyboardMarkup(back_keyboard))
+        await query.message.edit_text(f"🔗 የእርስዎ ማስተዋወቂያ ሊንክ:\n\n{ref_link}", reply_markup=InlineKeyboardMarkup(back_keyboard))
 
 def main() -> None:
-    # Start Flask server in a separate thread for Render
     t = threading.Thread(target=run_flask)
     t.daemon = True
     t.start()
 
-    # Build Telegram Bot application
     application = Application.builder().token(TOKEN).build()
 
     application.add_handler(CommandHandler("start", start))
