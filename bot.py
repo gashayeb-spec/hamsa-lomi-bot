@@ -66,13 +66,17 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     
     welcome_text = (
         f"ሰላም **{user.first_name}**! ወደ ሐምሳሎሚ አውቶማቲክ ሲስተም እንኳን በደህና መጡ።\n\n"
-        f"📢 **ልዩ የግብዣ እና የኮሚሽን ስራ (Pyramid & Referral System)!**\n"
+        f"📢 **ልዩ የግብዣ እና የኮሚሽን ስራ!**\n"
         f"ሰዎችን ወደዚህ ሲስተም በመጋበዝ እና ከታችዎ በማሰለፍ አስደናቂ ኮሚሽኖችን እና ሽልማቶችን ያግኙ! "
-        f"እያንዳንዱ ተጠቃሚ የራሱን ሊንክ በማስፋት ከስሩ ያሉትን ማስተዳደር ይችላል።\n\n"
-        f"እባክዎ ከታች ከሚገኙት የክፍያ አማራጮች አንዱን በመምረጥ አውቶማቲክ ክፍያዎን ይፈጽሙ!"
+        f"እያንዳንዱ ተጠቃሚ የራሱን ሊንክ በመውሰድ ስራውን መጀመር ይችላል።\n\n"
+        f"እባክዎ ከታች ከሚገኙት የክፍያ አማራጮች አንዱን ይምረጡ!"
     )
     
-    await update.message.reply_text(welcome_text, reply_markup=reply_markup, parse_mode="Markdown")
+    # Check if it's message or callback query update
+    if update.message:
+        await update.message.reply_text(welcome_text, reply_markup=reply_markup, parse_mode="Markdown")
+    elif update.callback_query:
+        await update.callback_query.message.edit_text(welcome_text, reply_markup=reply_markup, parse_mode="Markdown")
 
 # --- BUTTON HANDLERS ---
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -96,24 +100,13 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             f"📱 ቴሌብር (Telebirr) መረጃ:\n\n"
             f"- ስም: {CBE_NAME}\n"
             f"- ስልክ ቁጥር: `{TELEBIRR_PHONE}`\n\n"
-            f"ይህንን ስልክ ቁጥር በመንካት በቀጥታ ወደ ቴሌብር መተግበሪያዎ በመሄድ ክፍያ መፈጸም ይችላሉ!"
+            f"ይህንን ስልክ ቁጥር ነክተው ኮፒ በማድረግ በቴሌብር መተግበሪያዎ ክፍያ መፈጸም ይችላሉ!"
         )
-        # ቴሌብር ቁጥሩን በቀጥታ የሚከፍትበት ሊንክ (tel:)
-        tele_keyboard = [
-            [InlineKeyboardButton("📱 ቴሌብር መተግበሪያን ይክፈቱ", url=f"tel:{TELEBIRR_PHONE}")],
-            [InlineKeyboardButton("🔙 ወደ ዋናው ምናሌ ተመለስ", callback_data="main_menu")]
-        ]
-        await query.message.edit_text(tele_text, reply_markup=InlineKeyboardMarkup(tele_keyboard), parse_mode="Markdown")
+        back_keyboard = [[InlineKeyboardButton("🔙 ወደ ዋናው ምናሌ ተመለስ", callback_data="main_menu")]]
+        await query.message.edit_text(tele_text, reply_markup=InlineKeyboardMarkup(back_keyboard), parse_mode="Markdown")
 
     elif data == "main_menu":
-        keyboard = [
-            [InlineKeyboardButton("💳 በ Chapa አውቶማቲክ ክፍያ ፈጽም", callback_data="chapa_pay")],
-            [InlineKeyboardButton("🏦 የንግድ ባንክ (CBE) ቁጥር ለማየት", callback_data="view_cbe")],
-            [InlineKeyboardButton("📱 ቴሌብር (Telebirr) ቁጥር ለማየት", callback_data="view_telebirr")],
-            [InlineKeyboardButton("👤 የኔ አካውንት እና ሪፈራል", callback_data="profile")],
-            [InlineKeyboardButton("🔗 ማስተዋወቂያ ሊንክ", callback_data="mylink")]
-        ]
-        await query.message.edit_text("ሰላም! እባክዎ ከታች ያሉትን አማራጮች ይጠቀሙ።", reply_markup=InlineKeyboardMarkup(keyboard))
+        await start(update, context)
         
     elif data == "chapa_pay":
         tx_ref = f"hamsa-lomi-{user.id}-{int(requests.utils.datetime.datetime.utcnow().timestamp())}"
