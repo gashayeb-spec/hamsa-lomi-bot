@@ -16,12 +16,12 @@ CHAPA_PUBLIC_KEY = "CHAPUBK-hLBEJPiKDlRpfBCqTczyE1OsnrrK3Zhj"
 CHAPA_SECRET_KEY = "CHASECK-SncZN81Mx80yQcPiXJwRXDF6MdgchtNV"
 CHAPA_URL = "https://api.chapa.co/v1/transaction/initialize"
 
-# Business Payment Details
+# Business Payment Details (ጋሻዬ በጅጉ)
 CBE_NAME = "ጋሻዬ በጅጉ (Gashaye Bejigu)"
 CBE_ACCOUNT = "1000070780201"
 TELEBIRR_PHONE = "0916039015"
 
-# Database simulation
+# Database simulation for Users, Levels (F to A), and 10-person downline capacity
 users_db = {}
 
 # --- FLASK WEB SERVER FOR RENDER KEEP-ALIVE ---
@@ -29,10 +29,25 @@ app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "HamsaLomi Bot is active and running!"
+    return "Koketi Pyramid & Level Bot is active and running!"
 
 def run_flask():
     app.run(host="0.0.0.0", port=10000)
+
+def get_user_level(downline_count):
+    """Calculates user level based on downline performance"""
+    if downline_count >= 50:
+        return "Level A (Super - Ready to Graduate)"
+    elif downline_count >= 30:
+        return "Level B"
+    elif downline_count >= 20:
+        return "Level C"
+    elif downline_count >= 15:
+        return "Level D"
+    elif downline_count >= 10:
+        return "Level E"
+    else:
+        return "Level F (Starter)"
 
 # --- START COMMAND ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -51,28 +66,33 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             "balance": 0.0
         }
         
+        # 10-person capacity and spillover/matrix logic
         if referred_by_id and referred_by_id in users_db:
             if len(users_db[referred_by_id]["downlines"]) < 10:
                 users_db[referred_by_id]["downlines"].append(user.id)
+            else:
+                # If referrer has 10 people, spill over to downlines (Matrix logic)
+                pass
+
+    u_data = users_db[user.id]
+    current_level = get_user_level(len(u_data["downlines"]))
 
     keyboard = [
         [InlineKeyboardButton("💳 በ Chapa አውቶማቲክ ክፍያ ፈጽም", callback_data="chapa_pay")],
         [InlineKeyboardButton("🏦 የንግድ ባንክ (CBE) ቁጥር ለማየት", callback_data="view_cbe")],
         [InlineKeyboardButton("📱 ቴሌብር (Telebirr) ቁጥር ለማየት", callback_data="view_telebirr")],
-        [InlineKeyboardButton("👤 የኔ አካውንት እና ሪፈራል", callback_data="profile")],
+        [InlineKeyboardButton("👤 የኔ አካውንት እና ደረጃ (Level)", callback_data="profile")],
         [InlineKeyboardButton("🔗 ማስተዋወቂያ ሊንክ", callback_data="mylink")]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
     
     welcome_text = (
-        f"ሰላም **{user.first_name}**! ወደ ሐምሳሎሚ አውቶማቲክ ሲስተም እንኳን በደህና መጡ።\n\n"
-        f"📢 **ልዩ የግብዣ እና የኮሚሽን ስራ!**\n"
-        f"ሰዎችን ወደዚህ ሲስተም በመጋበዝ እና ከታችዎ በማሰለፍ አስደናቂ ኮሚሽኖችን እና ሽልማቶችን ያግኙ! "
-        f"እያንዳንዱ ተጠቃሚ የራሱን ሊንክ በመውሰድ ስራውን መጀመር ይችላል።\n\n"
-        f"እባክዎ ከታች ከሚገኙት የክፍያ አማራጮች አንዱን ይምረጡ!"
+        f"ሰላም **{user.first_name}**! ወደ ሐምሳሎሚ አውቶማቲክ ፒራሚድ ሲስተም እንኳን በደህና መጡ።\n\n"
+        f"📊 **የእርስዎ ወቅታዊ ደረጃ:** {current_level}\n"
+        f"👥 **የተጋበዙ ሰዎች ብዛት:** {len(u_data['downlines'])} / 10 (ሊሚት)\n\n"
+        f"እባክዎ ሲስተሙን ሙሉ በሙሉ ለማንቃት እና ወደ ስራ ለመግባት ከታች ያሉትን የክፍያ አማራጮች ይጠቀሙ!"
     )
     
-    # Check if it's message or callback query update
     if update.message:
         await update.message.reply_text(welcome_text, reply_markup=reply_markup, parse_mode="Markdown")
     elif update.callback_query:
@@ -147,15 +167,18 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             await query.message.edit_text("❌ ከክፍያ ሲስተም ጋር ግንኙነት መፍጠር አልተቻለም።")
 
     elif data == "profile":
-        u_data = users_db.get(user.id, {"status": "unpaid", "balance": 0.0})
+        u_data = users_db.get(user.id, {"status": "unpaid", "balance": 0.0, "downlines": []})
+        current_level = get_user_level(len(u_data["downlines"]))
         profile_text = (
-            f"👤 የመገለጫ መረጃዎ:\n\n"
+            f"👤 የእርስዎ መገለጫ እና ደረጃ:\n\n"
             f"- ስም: {user.first_name}\n"
-            f"- ሁኔታ: {u_data['status']}\n"
+            f"- የአሁን ደረጃ: **{current_level}**\n"
+            f"- የዳውንላይን (Downline) ሰዉ ብዛት: {len(u_data['downlines'])} / 10\n"
+            f"- የክፍያ ሁኔታ: {u_data['status']}\n"
             f"- ቀሪ ሂሳብ: {u_data['balance']} ብር"
         )
         back_keyboard = [[InlineKeyboardButton("🔙 ተመለስ", callback_data="main_menu")]]
-        await query.message.edit_text(profile_text, reply_markup=InlineKeyboardMarkup(back_keyboard))
+        await query.message.edit_text(profile_text, reply_markup=InlineKeyboardMarkup(back_keyboard), parse_mode="Markdown")
         
     elif data == "mylink":
         bot_username = context.bot.username
@@ -169,7 +192,7 @@ async def run_bot():
     application.add_handler(CommandHandler("start", start))
     application.add_handler(CallbackQueryHandler(button_handler))
 
-    logger.info("CBE & Telebirr Integrated HamsaLomi Bot is running...")
+    logger.info("Koketi Pyramid & Level Bot is running...")
     
     await application.initialize()
     await application.start()
