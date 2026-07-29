@@ -10,7 +10,7 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 import aiohttp
 
 # ----------------- CONFIGURATIONS -----------------
-TOKEN = "8909326861:AAGcgDU1iwDewhFyDcm2LcEKTRdntHHQnN0"
+TOKEN = "8909326861:AAFXhsQr6ArKcPXPSlnSZSCYfyxA8pSenx4"
 ADMIN_ID = 5351353727
 CHAPA_SECRET_KEY = "CHASECK-SncZN81MX80yQcPiXJwRXDF6MdgehtNV"
 CHAPA_PUBLIC_KEY = "CHAPUBK-hLBEJPiKDlRpfBCqTczyE10snrrK3Zhj"
