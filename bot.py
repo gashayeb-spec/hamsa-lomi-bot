@@ -11,11 +11,10 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 import aiohttp
 
 # ----------------- CONFIGURATIONS -----------------
-# ቶከኖች እና ቁልፎች በቀጥታ እዚህ ተቀምጠዋል
-TOKEN = "7336187654:AAFh06gZp8... (ወይም የቦት ቶከንህ)" # እዚህ ጋር የቦት ቶከንህን አስገባ
+TOKEN = "8909326861:AAFXhsQr6ArKcPXPSlnSZSCYfyxA8pSenx4"
 ADMIN_ID = 5351353727
-CHAPA_SECRET_KEY = "CHASECK_TEST-..." # የቻፓ ሴክሬት ኪህን እዚህ አስገባ
-CHAPA_PUBLIC_KEY = "CHAPUBK_TEST-..." # የቻፓ ፐብሊክ ኪህን እዚህ አስገባ
+CHAPA_SECRET_KEY = "CHASECK-SncZN81Mx80yQcPiXJwRXDF6MdgchtNV"
+CHAPA_PUBLIC_KEY = "CHAPUBK-hLBEJPiKDlRpfBCqTczyE1OsnrrK3Zhj"
 
 logging.basicConfig(level=logging.INFO)
 router = Router()
@@ -481,7 +480,7 @@ async def main():
     dp = Dispatcher(storage=MemoryStorage())
     dp.include_router(router)
     
-    print("Hamsa Lomi Binary Bot is running with Embedded Keys...")
+    print("Hamsa Lomi Binary Bot is running with Live Keys...")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
