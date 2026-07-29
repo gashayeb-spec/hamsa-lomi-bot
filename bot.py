@@ -3,7 +3,7 @@ import logging
 import os
 import sqlite3
 from aiogram import Bot, Dispatcher, F, Router, types
-from aiogram.filters import Command, CommandStart, StateFilter
+from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
@@ -11,11 +11,11 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 import aiohttp
 
 # ----------------- CONFIGURATIONS -----------------
-TOKEN = os.getenv("TOKEN")
-# የአድሚን መታወቂያህን እዚህ ጋር አስገባ
-ADMIN_ID = int(os.getenv("ADMIN_ID", "5351353727"))
-CHAPA_SECRET_KEY = os.getenv("CHAPA_SECRET_KEY")
-CHAPA_PUBLIC_KEY = os.getenv("CHAPA_PUBLIC_KEY")
+# ቶከኖች እና ቁልፎች በቀጥታ እዚህ ተቀምጠዋል
+TOKEN = "7336187654:AAFh06gZp8... (ወይም የቦት ቶከንህ)" # እዚህ ጋር የቦት ቶከንህን አስገባ
+ADMIN_ID = 5351353727
+CHAPA_SECRET_KEY = "CHASECK_TEST-..." # የቻፓ ሴክሬት ኪህን እዚህ አስገባ
+CHAPA_PUBLIC_KEY = "CHAPUBK_TEST-..." # የቻፓ ፐብሊክ ኪህን እዚህ አስገባ
 
 logging.basicConfig(level=logging.INFO)
 router = Router()
@@ -39,7 +39,6 @@ def init_db():
             value TEXT
         )
     """)
-    # የዲፎልት/የመነሻ መረጃዎች ምዝገባ
     default_settings = [
         ('package_price', '500.0'),
         ('commission_percent', '10.0'),
@@ -131,7 +130,6 @@ def activate_user_in_matrix(user_id):
     referrer_id = res[0]
     parent_id, position = find_available_position(referrer_id if referrer_id else ADMIN_ID)
     
-    # ፐርሰንቱን ከዳታቤዝ አምጥቶ ማስላት
     package_price = get_setting('package_price', float)
     commission_percent = get_setting('commission_percent', float)
     commission_amount = package_price * (commission_percent / 100.0)
@@ -202,7 +200,6 @@ async def cmd_start(message: types.Message, state: FSMContext):
         [InlineKeyboardButton(text="🎁 የሽልማት እቅዶች (Rewards)", callback_data="rewards_info")]
     ]
     
-    # አድሚን ከሆነ የፓነል መግቢያ ይታየዋል
     if message.from_user.id == ADMIN_ID:
         keyboard_buttons.append([InlineKeyboardButton(text="⚙️ አድሚን ፓነል (Admin Settings)", callback_data="admin_panel")])
 
@@ -270,7 +267,7 @@ async def process_new_comm(message: types.Message, state: FSMContext):
 @router.callback_query(F.data == "admin_set_milestones")
 async def admin_set_m1(callback: types.CallbackQuery, state: FSMContext):
     await state.set_state(AdminConfig.waiting_for_m1)
-    await callback.message.edit_text("አዲስ ዙር ለመጀመር ወይም ገደቦችን ለመቀየር፦\n\nየመጀመሪያውን ደረጃ ሽልማት ቁጥር ያስገቡ፦\n(ለምሳሌ ድሮ 3000 ከነበረ አሁን 12000 ማድረግ ከፈለጉ 12000 ብለው ይጻፉ)")
+    await callback.message.edit_text("አዲስ ዙር ለመጀመር ወይም ገደቦችን ለመቀየር፦\n\nየመጀመሪያውን ደረጃ ሽልማት ቁጥር ያስገቡ፦\n(ለምሳሌ: 3000)")
 
 @router.message(AdminConfig.waiting_for_m1)
 async def process_m1(message: types.Message, state: FSMContext):
@@ -278,7 +275,7 @@ async def process_m1(message: types.Message, state: FSMContext):
         m1 = int(message.text)
         set_setting('milestone_1', m1)
         await state.set_state(AdminConfig.waiting_for_m2)
-        await message.answer(f"✅ ደረጃ 1 ሽልማት ወደ {m1} ተቀይሯል።\n\nአሁን የሁለተኛውን ደረጃ ሽልማት ቁጥር ያስገቡ፦\n(ለምሳሌ: 15000)")
+        await message.answer(f"✅ ደረጃ 1 ሽልማት ወደ {m1} ተቀይሯል።\n\nአሁን የሁለተኛውን ደረጃ ሽልማት ቁጥር ያስገቡ፦\n(ለምሳሌ: 6000)")
     except ValueError:
         await message.answer("❌ እባክዎ ትክክለኛ ቁጥር ብቻ ያስገቡ።")
 
@@ -288,7 +285,7 @@ async def process_m2(message: types.Message, state: FSMContext):
         m2 = int(message.text)
         set_setting('milestone_2', m2)
         await state.set_state(AdminConfig.waiting_for_m3)
-        await message.answer(f"✅ ደረጃ 2 ሽልማት ወደ {m2} ተቀይሯል።\n\nበመጨረሻም የሶስተኛውን (ዋናውን) ሽልማት ቁጥር ያስገቡ፦\n(ለምሳሌ: 18000)")
+        await message.answer(f"✅ ደረጃ 2 ሽልማት ወደ {m2} ተቀይሯል።\n\nበመጨረሻም የሶስተኛውን (ዋናውን) ሽልማት ቁጥር ያስገቡ፦\n(ለምሳሌ: 9000)")
     except ValueError:
         await message.answer("❌ እባክዎ ትክክለኛ ቁጥር ብቻ ያስገቡ።")
 
@@ -484,7 +481,7 @@ async def main():
     dp = Dispatcher(storage=MemoryStorage())
     dp.include_router(router)
     
-    print("Hamsa Lomi Binary Bot is running with Advanced Admin Panel...")
+    print("Hamsa Lomi Binary Bot is running with Embedded Keys...")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
