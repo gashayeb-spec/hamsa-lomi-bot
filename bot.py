@@ -7,7 +7,7 @@ from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, BotCommand, WebAppInfo
 import aiohttp
 from aiohttp import web
 
@@ -17,16 +17,35 @@ ADMIN_ID = 5351353727
 CHAPA_SECRET_KEY = "CHASECK-SncZN81Mx80yQcPiXJwRXDF6MdgchtNV"
 CHAPA_PUBLIC_KEY = "CHAPUBK-hLBEJPiKDlRpfBCqTczyE1OsnrrK3Zhj"
 
+# እዚህ ጋር የሰሩትን የ index.html ሊንክ ያስገቡ (ለምሳሌ: https://your-app.onrender.com/index.html)
+WEB_APP_URL = "https://your-render-app-url.com/index.html"
+
+# የ 50 ሎሚ ኦፊሴላዊ የቴሌግራም ቻናል ትስስር
+CHANNEL_USERNAME = "@Hamisalomi_bot_official" 
+TUTORIAL_VIDEO_URL = "https://t.me/Hamisalomi_bot_official"
+
 logging.basicConfig(level=logging.INFO)
 router = Router()
 
-# ----------------- STATES FOR ADMIN -----------------
+# ----------------- STATES -----------------
 class AdminConfig(StatesGroup):
     waiting_for_price = State()
     waiting_for_commission = State()
     waiting_for_m1 = State()
     waiting_for_m2 = State()
     waiting_for_m3 = State()
+    waiting_for_broadcast = State()
+    waiting_for_video_link = State()
+
+class UserProfileSetup(StatesGroup):
+    waiting_for_phone = State()
+    waiting_for_payment_info = State()
+
+class WithdrawStates(StatesGroup):
+    waiting_for_amount = State()
+
+class AdminCheckUserStates(StatesGroup):
+    waiting_for_user_id = State()
 
 # ----------------- DATABASE SETUP -----------------
 def init_db():
@@ -44,7 +63,8 @@ def init_db():
         ('commission_percent', '10.0'),
         ('milestone_1', '3000'),
         ('milestone_2', '6000'),
-        ('milestone_3', '9000')
+        ('milestone_3', '9000'),
+        ('tutorial_link', TUTORIAL_VIDEO_URL)
     ]
     for k, v in default_settings:
         cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", (k, v))
@@ -58,7 +78,9 @@ def init_db():
             parent_id INTEGER,
             position TEXT,
             is_active INTEGER DEFAULT 0,
-            balance REAL DEFAULT 0.0
+            balance REAL DEFAULT 0.0,
+            phone_number TEXT,
+            payment_account TEXT
         )
     """)
     
@@ -68,6 +90,17 @@ def init_db():
             user_id INTEGER,
             amount REAL,
             status TEXT DEFAULT 'PENDING'
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS withdrawals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            amount REAL,
+            account_info TEXT,
+            status TEXT DEFAULT 'PENDING',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
     
@@ -83,6 +116,8 @@ def get_setting(key, default_type=float):
     row = cursor.fetchone()
     conn.close()
     if row:
+        if default_type == int:
+            return int(float(row[0]))
         return default_type(row[0])
     return default_type(0)
 
@@ -101,14 +136,6 @@ def get_user(user_id):
     conn.close()
     return user
 
-def get_total_users_count():
-    conn = sqlite3.connect("binary_mlm.db")
-    cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*) FROM users WHERE is_active = 1")
-    count = cursor.fetchone()[0]
-    conn.close()
-    return count
-
 def register_pending_user(user_id, username, fullname, referrer_id):
     conn = sqlite3.connect("binary_mlm.db")
     cursor = conn.cursor()
@@ -119,6 +146,7 @@ def register_pending_user(user_id, username, fullname, referrer_id):
     conn.commit()
     conn.close()
 
+# ----------------- MATRIX & REFERRAL LOGIC -----------------
 def activate_user_in_matrix(user_id):
     conn = sqlite3.connect("binary_mlm.db")
     cursor = conn.cursor()
@@ -129,15 +157,26 @@ def activate_user_in_matrix(user_id):
         conn.close()
         return False
     
-    referrer_id = res[1]
-    parent_id, position = find_available_position(referrer_id if referrer_id else ADMIN_ID)
+    raw_referrer_id = res[1]
+    
+    target_commission_user = ADMIN_ID
+    if raw_referrer_id and raw_referrer_id != ADMIN_ID:
+        cursor.execute("SELECT COUNT(*) FROM users WHERE referrer_id = ? AND is_active = 1", (raw_referrer_id,))
+        direct_count = cursor.fetchone()[0]
+        
+        if direct_count < 10:
+            target_commission_user = raw_referrer_id
+        else:
+            target_commission_user = ADMIN_ID
+    
+    effective_parent_id = get_effective_parent_for_matrix(raw_referrer_id if raw_referrer_id else ADMIN_ID)
+    parent_id, position = find_available_position_under(effective_parent_id)
     
     package_price = get_setting('package_price', float)
     commission_percent = get_setting('commission_percent', float)
     commission_amount = package_price * (commission_percent / 100.0)
     
-    if referrer_id:
-        cursor.execute("UPDATE users SET balance = balance + ? WHERE user_id = ?", (commission_amount, referrer_id))
+    cursor.execute("UPDATE users SET balance = balance + ? WHERE user_id = ?", (commission_amount, target_commission_user))
     
     cursor.execute("""
         UPDATE users SET parent_id = ?, position = ?, is_active = 1 WHERE user_id = ?
@@ -147,29 +186,65 @@ def activate_user_in_matrix(user_id):
     conn.close()
     return True
 
-def find_available_position(start_user_id):
+def get_effective_parent_for_matrix(referrer_id):
+    if not referrer_id:
+        return ADMIN_ID
     conn = sqlite3.connect("binary_mlm.db")
     cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM users WHERE parent_id = ? AND is_active = 1", (referrer_id,))
+    count = cursor.fetchone()[0]
+    conn.close()
     
+    if count >= 10:
+        return find_available_matrix_parent()
+    return referrer_id
+
+def find_available_matrix_parent():
+    conn = sqlite3.connect("binary_mlm.db")
+    cursor = conn.cursor()
+    queue = [ADMIN_ID]
+    while queue:
+        current_id = queue.pop(0)
+        
+        cursor.execute("SELECT user_id FROM users WHERE parent_id = ? AND position = 'LEFT' AND is_active = 1", (current_id,))
+        left_child = cursor.fetchone()
+        if not left_child:
+            conn.close()
+            return current_id
+        else:
+            queue.append(left_child[0])
+            
+        cursor.execute("SELECT user_id FROM users WHERE parent_id = ? AND position = 'RIGHT' AND is_active = 1", (current_id,))
+        right_child = cursor.fetchone()
+        if not right_child:
+            conn.close()
+            return current_id
+        else:
+            queue.append(right_child[0])
+            
+    conn.close()
+    return ADMIN_ID
+
+def find_available_position_under(start_user_id):
+    conn = sqlite3.connect("binary_mlm.db")
+    cursor = conn.cursor()
     queue = [start_user_id]
     while queue:
         current_id = queue.pop(0)
         
         cursor.execute("SELECT user_id FROM users WHERE parent_id = ? AND position = 'LEFT'", (current_id,))
-        left_child = cursor.fetchone()
-        if not left_child:
+        if not cursor.fetchone():
             conn.close()
             return current_id, 'LEFT'
-        else:
-            queue.append(left_child[0])
-            
+        
         cursor.execute("SELECT user_id FROM users WHERE parent_id = ? AND position = 'RIGHT'", (current_id,))
-        right_child = cursor.fetchone()
-        if not right_child:
+        if not cursor.fetchone():
             conn.close()
             return current_id, 'RIGHT'
-        else:
-            queue.append(right_child[0])
+            
+        cursor.execute("SELECT user_id FROM users WHERE parent_id = ? ORDER BY position", (current_id,))
+        for child in cursor.fetchall():
+            queue.append(child[0])
             
     conn.close()
     return start_user_id, 'LEFT'
@@ -200,21 +275,64 @@ async def cmd_start(message: types.Message, state: FSMContext):
             message.from_user.full_name or "User",
             referrer_id
         )
-    else:
-        if not user[3] and referrer_id and referrer_id != message.from_user.id:
-            conn = sqlite3.connect("binary_mlm.db")
-            cursor = conn.cursor()
-            cursor.execute("UPDATE users SET referrer_id = ? WHERE user_id = ?", (referrer_id, message.from_user.id))
-            conn.commit()
-            conn.close()
+        user = get_user(message.from_user.id)
 
+    if not user[8] or not user[9]:
+        await state.set_state(UserProfileSetup.waiting_for_phone)
+        await message.answer(
+            f"ሰላም <b>{message.from_user.full_name}</b>!\n\n"
+            f"እንኳን ወደ 50 ሎሚ በሰላም መጡ! 🤝\n"
+            f"የሪፈራል ሊንክ ከመሰጠቱ በፊት እባክዎ አሰራሩን ለማስተካከል <b>ስልክ ቁጥርዎን</b> ይጻፉልኝ፦\n"
+            f"<i>(ምሳሌ: 0911223344)</i>",
+            parse_mode="HTML"
+        )
+        return
+
+    await show_main_menu(message, user)
+
+@router.message(UserProfileSetup.waiting_for_phone)
+async def process_user_phone(message: types.Message, state: FSMContext):
+    phone = message.text.strip()
+    await state.update_data(phone=phone)
+    await state.set_state(UserProfileSetup.waiting_for_payment_info)
+    
+    await message.answer(
+        "አሪፍ! አሁን ደግሞ የገንዘብ መቀበያ አካውንትዎን (ለምሳሌ፦ <b>የቴሌብር፣ የሲቢኢ (CBE) ወይም የባንክ አካውንት ቁጥር ስምዎ ጋር</b>) በግልጽ ይጻፉልኝ፦",
+        parse_mode="HTML"
+    )
+
+@router.message(UserProfileSetup.waiting_for_payment_info)
+async def process_user_payment_info(message: types.Message, state: FSMContext):
+    payment_info = message.text.strip()
+    data = await state.get_data()
+    phone = data.get("phone")
+    
+    conn = sqlite3.connect("binary_mlm.db")
+    cursor = conn.cursor()
+    cursor.execute("UPDATE users SET phone_number = ?, payment_account = ? WHERE user_id = ?", 
+                   (phone, payment_info, message.from_user.id))
+    conn.commit()
+    conn.close()
+    
+    await state.clear()
+    user = get_user(message.from_user.id)
+    await message.answer("✅ መረጃዎ በትክክል ተመዝግቧል! አሁን ወደ ዋናው ገጽ ገብተዋል፦")
+    await show_main_menu(message, user)
+
+async def show_main_menu(message_or_callback, user):
+    is_admin = (message_or_callback.from_user.id == ADMIN_ID)
+    
     keyboard_buttons = [
+        # 🚀 ፎቶ ላይ እንዳየነው ዘመናዊ መተግበሪያ መክፈቻ በለም ግሪን ከለር
+        [InlineKeyboardButton(text="🚀 የ50 ሎሚ መተግበሪያ ክፈት (Mini App)", web_app=WebAppInfo(url=WEB_APP_URL))],
         [InlineKeyboardButton(text="💳 ፓኬጅ ይግዙ (Activate Account)", callback_data="pay_chapa")],
-        [InlineKeyboardButton(text="📊 የኔ አካውንት እና ሊንክ", callback_data="my_account")],
-        [InlineKeyboardButton(text="🎁 የሽልማት እቅዶች (Rewards)", callback_data="rewards_info")]
+        [InlineKeyboardButton(text="📊 የኔ ዋሌት እና አካውንት (Wallet)", callback_data="my_account")],
+        [InlineKeyboardButton(text="ℹ️ ስለ 50 ሎሚ እና አሰራር (About)", callback_data="bot_about")],
+        [InlineKeyboardButton(text="🎬 አጠቃቀም ቪዲዮ መመሪያ (Tutorial)", callback_data="tutorial_video")],
+        [InlineKeyboardButton(text="📢 ኦፊሴላዊ ቻናል እና ውይይት", url=f"https://t.me/{CHANNEL_USERNAME.replace('@', '')}")]
     ]
     
-    if message.from_user.id == ADMIN_ID:
+    if is_admin:
         keyboard_buttons.append([InlineKeyboardButton(text="⚙️ አድሚን ፓነል (Admin Settings)", callback_data="admin_panel")])
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
@@ -223,20 +341,313 @@ async def cmd_start(message: types.Message, state: FSMContext):
     current_commission = get_setting('commission_percent', float)
     
     welcome_text = (
-        f"ሰላም <b>{message.from_user.full_name}</b>!\n\n"
-        f"እንኳን ወደ አብሮነት በሰላም መጡ!\n"
-        f"ይህ ማባበያ ሳይሆን ተጋግዘን የምንሰራበት ስራ ነው። "
-        f"እንኳን ወደ አብሮነት እድገት በደህና መጡ፤ አምሳሎ ህይወት እንዲህ ነው! 🤝\n\n"
+        f"ሰላም <b>{message_or_callback.from_user.full_name}</b>!\n\n"
+        f"እንኳን ወደ 50 ሎሚ በደህና መጡ፤ አምሳሎ ህይወት እንዲህ ነው! 🤝\n\n"
         f"የአሁኑ የፓኬጅ ዋጋ: <b>{current_price} ብር</b>\n"
         f"የስራ ኮሚሽን: <b>{current_commission}%</b>\n\n"
-        f"ማትሪክስ ውስጥ ለመሰለፍ እና አብረን ለመስራት መግቢያ ክፍያውን መፈጸም ይኖርብዎታል።"
+        f"ከታች ካሉት አማራጮች ውስጥ የሚፈልጉትን መምረጥ ይችላሉ ወይም ከላይ ያለውን **Mini App** መክፈት ይችላሉ።"
     )
-    try:
-        await message.answer(welcome_text, reply_markup=keyboard, parse_mode="HTML")
-    except Exception as e:
-        logging.error(f"Error in cmd_start answer: {e}")
+    
+    if isinstance(message_or_callback, types.CallbackQuery):
+        await message_or_callback.message.edit_text(welcome_text, reply_markup=keyboard, parse_mode="HTML")
+    else:
+        await message_or_callback.answer(welcome_text, reply_markup=keyboard, parse_mode="HTML")
 
-# ----------------- ADMIN PANEL -----------------
+# ----------------- MINI APP DATA RECEIVER -----------------
+@router.message(F.web_app_data)
+async def handle_web_app_data(message: types.Message, state: FSMContext):
+    action = message.web_app_data.data
+    user = get_user(message.from_user.id)
+    
+    if action == "pay_chapa":
+        fake_callback = types.CallbackQuery(id="0", from_user=message.from_user, chat_instance="0", message=message, data="pay_chapa")
+        await pay_chapa(fake_callback)
+    elif action == "my_account":
+        fake_callback = types.CallbackQuery(id="0", from_user=message.from_user, chat_instance="0", message=message, data="my_account")
+        await my_account_callback(fake_callback)
+    elif action == "bot_about":
+        fake_callback = types.CallbackQuery(id="0", from_user=message.from_user, chat_instance="0", message=message, data="bot_about")
+        await bot_about_callback(fake_callback)
+    elif action == "tutorial_video":
+        fake_callback = types.CallbackQuery(id="0", from_user=message.from_user, chat_instance="0", message=message, data="tutorial_video")
+        await tutorial_video_callback(fake_callback)
+    elif action == "main_menu":
+        await show_main_menu(message, user)
+
+# ----------------- ABOUT & TUTORIAL HANDLERS -----------------
+@router.callback_query(F.data == "bot_about")
+async def bot_about_callback(callback: types.CallbackQuery):
+    text = (
+        f"ℹ️ <b>ስለ 50 ሎሚ ቦት እና አሰራር ማብራሪያ</b>\n\n"
+        f"ይህ ቦት ተጠቃሚዎች በአንድነት እርስ በእርስ እየተደጋገፉ ገቢ የሚያገኙበት <b>የባይነሪ ማትሪክስ (Binary MLM System)</b> መድረክ ነው።\n\n"
+        f"🔹 <b>እንዴት ይሰራል?</b>\n"
+        f"1. መግቢያ ክፍያ በመፈጸም አካውንትዎን ንቁ (Active) ያደርጋሉ።\n"
+        f"2. የራስዎን ሪፈራል ሊንክ ለጓደኛዎችዎ በማጋራት አብረን እያደግን ኮሚሽን ይሰበስባሉ።\n"
+        f"3. የተጠራቀመውን ገንዘብ በማንኛውም ሰዓት ከዋሌትዎ ውስጥ ማውጣት (Withdraw) ይችላሉ።\n"
+        f"4. በኦፊሴላዊው ቻናላችን በመቀላቀል ሌሎች አባላትን ማበረታታት እና መወያየት ይቻላል!"
+    )
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="🔙 ወደ ዋናው ገጽ", callback_data="main_menu")]
+    ])
+    await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
+
+@router.callback_query(F.data == "tutorial_video")
+async def tutorial_video_callback(callback: types.CallbackQuery):
+    t_link = get_setting('tutorial_link', str)
+    if not t_link or t_link == "0":
+        t_link = TUTORIAL_VIDEO_URL
+        
+    text = (
+        f"🎬 <b>የአጠቃቀም ቪዲዮ እና መመሪያ</b>\n\n"
+        f"ቦቱን እንዴት መጠቀም እንደሚችሉ፣ ክፍያ እንዴት እንደሚፈጽሙ እና ሊንክዎን እንዴት ማጋራት እንዳለብዎ የሚያሳይ መመሪያ ከታች ባለው ሊንክ ማየት ይችላሉ፦\n\n"
+        f"🔗 <a href='{t_link}'>መመሪያውን ለማየት እዚህ ይጫኑ</a>"
+    )
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📺 ቻናሉን ይጎብኙ", url=t_link)],
+        [InlineKeyboardButton(text="🔙 ወደ ዋናው ገጽ", callback_data="main_menu")]
+    ])
+    await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML", disable_web_page_preview=False)
+
+# ----------------- WALLET & WITHDRAWAL -----------------
+@router.callback_query(F.data == "my_account")
+async def my_account_callback(callback: types.CallbackQuery):
+    user = get_user(callback.from_user.id)
+    if not user:
+        await callback.message.answer("እባክዎ መጀመሪያ /start ይጫኑ።")
+        return
+
+    is_active = user[6] == 1
+    balance = user[7]
+    phone = user[8] or 'አልገባም'
+    pay_acc = user[9] or 'አልገባም'
+    
+    bot_info = await callback.bot.get_me()
+    ref_link = f"https://t.me/{bot_info.username}?start={callback.from_user.id}"
+
+    conn = sqlite3.connect("binary_mlm.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM users WHERE referrer_id = ?", (callback.from_user.id,))
+    total_refs = cursor.fetchone()[0]
+    cursor.execute("SELECT COUNT(*) FROM users WHERE referrer_id = ? AND is_active = 1", (callback.from_user.id,))
+    active_refs = cursor.fetchone()[0]
+    conn.close()
+
+    if not is_active:
+        text = (
+            f"💳 <b>የእርስዎ ዋሌት እና አካውንት መረጃ</b>\n\n"
+            f"👤 ስም: {callback.from_user.full_name}\n"
+            f"📞 ስልክ: {phone}\n"
+            f"🏦 የክፍያ አካውንት: {pay_acc}\n"
+            f"🔴 ሁኔታ: ስራ አልጀመረም (Pending)\n"
+            f"💰 ዋሌት ቀሪ ሂሳብ: <b>{balance} ብር</b>\n\n"
+            f"👥 የጠሯቸው ሰዎች ብዛት: <b>{total_refs}</b> (ንቁ: {active_refs})\n\n"
+            f"⚠️ <b>ማሳሰቢያ፦</b> የሪፈራል ሊንክዎን ለማግኘት እና ገንዘብ ማውጣት ለመጀመር መጀመሪያ የፓኬጅ ክፍያ መፈጸም አለብዎት!"
+        )
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="💳 አሁኑኑ ፓኬጅ ይግዙ (Activate)", callback_data="pay_chapa")],
+            [InlineKeyboardButton(text="📢 ቻናሉን ይቀላቀሉ", url=f"https://t.me/{CHANNEL_USERNAME.replace('@', '')}")],
+            [InlineKeyboardButton(text="🔙 ወደ ዋናው ገጽ", callback_data="main_menu")]
+        ])
+    else:
+        share_text = f"እንኳን ወደ 50 ሎሚ በሰላም መጡ! አብረን እንስራ፦ {ref_link}"
+        share_url = f"https://t.me/share/url?url={ref_link}&text={quote_plus_text(share_text)}"
+        
+        text = (
+            f"💳 <b>የእርስዎ ዋሌት እና አካውንት መረጃ</b>\n\n"
+            f"👤 ስም: {callback.from_user.full_name}\n"
+            f"📞 ስልክ: {phone}\n"
+            f"🏦 የክፍያ አካውንት: {pay_acc}\n"
+            f"🟢 ሁኔታ: ንቁ (Active)\n"
+            f"💰 ዋሌት ቀሪ ሂሳብ: <b>{balance} ብር</b>\n\n"
+            f"👥 የጠሯቸው ሰዎች: ጠቅላላ <b>{total_refs}</b> | ንቁ አባላት: <b>{active_refs}</b>\n\n"
+            f"🔗 <b>የእርስዎ የሪፈራል ሊንክ:</b>\n`{ref_link}`"
+        )
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="💸 ገንዘብ ማውጣት (Withdraw)", callback_data="request_withdraw")],
+            [InlineKeyboardButton(text="📤 ሊንኩን ሼር ያድርጉ", url=share_url)],
+            [InlineKeyboardButton(text="💬 የኦፊሴላዊ ቻናል", url=f"https://t.me/{CHANNEL_USERNAME.replace('@', '')}")],
+            [InlineKeyboardButton(text="🔙 ወደ ዋናው ገጽ", callback_data="main_menu")]
+        ])
+
+    await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
+
+@router.callback_query(F.data == "request_withdraw")
+async def request_withdraw(callback: types.CallbackQuery, state: FSMContext):
+    user = get_user(callback.from_user.id)
+    if not user or user[6] != 1:
+        await callback.answer("አካውንትዎ ንቁ አይደለም!", show_alert=True)
+        return
+    
+    balance = user[7]
+    if balance <= 0:
+        await callback.answer("❌ በዋሌትዎ ውስጥ ማውጣት የሚችሉት ቀሪ ሂሳብ የለም!", show_alert=True)
+        return
+        
+    await state.set_state(WithdrawStates.waiting_for_amount)
+    await callback.message.edit_text(
+        f"💸 <b>የገንዘብ ማውጫ (Withdrawal) አማራጮች</b>\n\n"
+        f"አሁን በዋሌትዎ ውስጥ ያለው ቀሪ ሂሳብ: <b>{balance} ብር</b>\n"
+        f"የመቀበያ አካውንትዎ: <b>{user[9]}</b>\n\n"
+        f"ማውጣት የሚፈልጉትን የብር መጠን ይጻፉልኝ፦"
+    )
+
+@router.message(WithdrawStates.waiting_for_amount)
+async def process_withdraw_amount(message: types.Message, state: FSMContext):
+    try:
+        amount = float(message.text.strip())
+    except ValueError:
+        await message.answer("❌ እባክዎ ትክክለኛ የቁጥር መጠን ብቻ ያስገቡ።")
+        return
+        
+    user = get_user(message.from_user.id)
+    balance = user[7]
+    
+    if amount <= 0:
+        await message.answer("❌ ትክክለኛ ያልሆነ መጠን።")
+        return
+        
+    if amount > balance:
+        await message.answer(f"❌ በዋሌትዎ ውስጥ ያለው ከፍተኛ ሂሳብ {balance} ብር ብቻ ነው። እንደገና ትክክለኛ መጠን ያስገቡ፦")
+        return
+
+    conn = sqlite3.connect("binary_mlm.db")
+    cursor = conn.cursor()
+    cursor.execute("UPDATE users SET balance = balance - ? WHERE user_id = ?", (amount, message.from_user.id))
+    cursor.execute("INSERT INTO withdrawals (user_id, amount, account_info, status) VALUES (?, ?, ?, 'PENDING')", 
+                   (message.from_user.id, amount, f"Phone: {user[8]}, Account: {user[9]}"))
+    withdrawal_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    
+    await state.clear()
+    
+    try:
+        admin_text = (
+            f"🔔 <b>አዲስ የገንዘብ ማውጣት (Withdrawal) ጥያቄ!</b>\n\n"
+            f"👤 ተጠቃሚ: {message.from_user.full_name} (ID: <code>{message.from_user.id}</code>)\n"
+            f"💰 የተጠየቀ መጠን: <b>{amount} ብር</b>\n"
+            f"📞 ስልክ ቁጥር: {user[8]}\n"
+            f"🏦 የክፍያ አካውንት: {user[9]}\n\n"
+            f"<i>እባክዎ ከታች ያሉትን ቁልፎች በመጫን ያጽድቁ ወይም ውድቅ ያድርጉ!</i>"
+        )
+        admin_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [
+                InlineKeyboardButton(text="✅ አጽድቅ (Approve)", callback_data=f"app_w_{withdrawal_id}"),
+                InlineKeyboardButton(text="❌ ውድቅ አድርግ (Reject)", callback_data=f"rej_w_{withdrawal_id}")
+            ]
+        ])
+        await message.bot.send_message(ADMIN_ID, admin_text, reply_markup=admin_keyboard, parse_mode="HTML")
+    except Exception as e:
+        logging.error(f"Failed to send withdraw notice to admin: {e}")
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📊 ወደ ዋሌት ገጽ ተመለስ", callback_data="my_account")]
+    ])
+    await message.answer(
+        f"✅ <b>የገንዘብ ማውጣት ጥያቄዎ ለአድሚን ተልኳል!</b>\n\n"
+        f"የጠየቁት መጠን: <b>{amount} ብር</b>\n"
+        f"የመቀበያ አካውንትዎ: <b>{user[9]} ({user[8]})</b>\n\n"
+        f"አድሚኑ ጥያቄውን አረጋግጦ ሲያጸድቀው ገንዘቡ ወደ አካውንትዎ ይለቀቃል።",
+        reply_markup=keyboard,
+        parse_mode="HTML"
+    )
+
+# ----------------- ADMIN WITHDRAW APPROVAL HANDLERS -----------------
+@router.callback_query(F.data.startswith("app_w_"))
+async def approve_withdrawal(callback: types.CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        await callback.answer("ይህ ትዕዛዝ ለአድሚን ብቻ ነው!", show_alert=True)
+        return
+
+    w_id = int(callback.data.split("_")[2])
+    
+    conn = sqlite3.connect("binary_mlm.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT user_id, amount, account_info, status FROM withdrawals WHERE id = ?", (w_id,))
+    w_row = cursor.fetchone()
+    
+    if not w_row:
+        conn.close()
+        await callback.answer("❌ የጥያቄ መረጃው አልተገኘም!", show_alert=True)
+        return
+        
+    user_id, amount, account_info, status = w_row
+    
+    if status != 'PENDING':
+        conn.close()
+        await callback.answer(f"⚠️ ይህ ጥያቄ ቀድሞውኑ ተጠናቋል ({status})!", show_alert=True)
+        return
+
+    cursor.execute("UPDATE withdrawals SET status = 'APPROVED' WHERE id = ?", (w_id,))
+    conn.commit()
+    conn.close()
+
+    try:
+        user_msg = (
+            f"🎉 <b>የገንዘብ ማውጣት (Withdrawal) ጥያቄዎ ጸድቋል!</b>\n\n"
+            f"💰 የተለቀቀው መጠን: <b>{amount} ብር</b>\n"
+            f"🏦 አካውንትዎ: {account_info}\n\n"
+            f"<i>ገንዘቡ በተጠቀሰው አካውንትዎ ገብቷል። እናመሰግናለን!</i>"
+        )
+        await callback.bot.send_message(user_id, user_msg, parse_mode="HTML")
+    except Exception as e:
+        logging.error(f"Failed to notify user about approval: {e}")
+
+    await callback.message.edit_text(
+        f"{callback.message.text}\n\n"
+        f"✅ <b>ሁኔታ: በአድሚን ጸድቋል (APPROVED)</b>",
+        parse_mode="HTML"
+    )
+    await callback.answer("ጥያቄው በተሳካ ሁኔታ ጸድቋል!", show_alert=True)
+
+@router.callback_query(F.data.startswith("rej_w_"))
+async def reject_withdrawal(callback: types.CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        await callback.answer("ይህ ትዕዛዝ ለአድሚን ብቻ ነው!", show_alert=True)
+        return
+
+    w_id = int(callback.data.split("_")[2])
+    
+    conn = sqlite3.connect("binary_mlm.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT user_id, amount, account_info, status FROM withdrawals WHERE id = ?", (w_id,))
+    w_row = cursor.fetchone()
+    
+    if not w_row:
+        conn.close()
+        await callback.answer("❌ የጥያቄ መረጃው አልተገኘም!", show_alert=True)
+        return
+        
+    user_id, amount, account_info, status = w_row
+    
+    if status != 'PENDING':
+        conn.close()
+        await callback.answer(f"⚠️ ይህ ጥያቄ ቀድሞውኑ ተጠናቋል ({status})!", show_alert=True)
+        return
+
+    cursor.execute("UPDATE withdrawals SET status = 'REJECTED' WHERE id = ?", (w_id,))
+    cursor.execute("UPDATE users SET balance = balance + ? WHERE user_id = ?", (amount, user_id))
+    conn.commit()
+    conn.close()
+
+    try:
+        user_msg = (
+            f"❌ <b>የገንዘብ ማውጣት (Withdrawal) ጥያቄዎ ውድቅ ተደርጓል!</b>\n\n"
+            f"💰 የተጠየቀው መጠን: <b>{amount} ብር</b>\n"
+            f"🔄 የተቆረጠው ገንዘብ ተመልሶ ወደ ዋሌትዎ ገብቷል።"
+        )
+        await callback.bot.send_message(user_id, user_msg, parse_mode="HTML")
+    except Exception as e:
+        logging.error(f"Failed to notify user about rejection: {e}")
+
+    await callback.message.edit_text(
+        f"{callback.message.text}\n\n"
+        f"❌ <b>ሁኔታ: በአድሚን ውድቅ ተደርጓል (REJECTED - ገንዘቡ ተመልሷል)</b>",
+        parse_mode="HTML"
+    )
+    await callback.answer("ጥያቄው ውድቅ ተደርጓል፣ ገንዘቡም ለተጠቃሚው ተመልሷል።", show_alert=True)
+
+# ----------------- ADMIN PANEL & USER CHECKER -----------------
 @router.callback_query(F.data == "admin_panel")
 async def admin_panel_callback(callback: types.CallbackQuery):
     if callback.from_user.id != ADMIN_ID:
@@ -244,12 +655,114 @@ async def admin_panel_callback(callback: types.CallbackQuery):
         return
     
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="💰 የፓኬጅ ዋጋ ቀይር", callback_data="admin_set_price")],
-        [InlineKeyboardButton(text="📈 የኮሚሽን ፐርሰንት ቀይር", callback_data="admin_set_comm")],
-        [InlineKeyboardButton(text="🏆 የሽልማት ገደቦችን (Milestones) ቀይር", callback_data="admin_set_milestones")],
+        [InlineKeyboardButton(text="🔍 የተጠቃሚ ዝርዝር ፈልግ (Check User)", callback_data="admin_check_user")],
+        [InlineKeyboardButton(text="💰 የፓኬጅ ዋጋ ቀይር", callback_data="admin_set_price"), InlineKeyboardButton(text="📈 የኮሚሽን ፐርሰንት ቀይር", callback_data="admin_set_comm")],
+        [InlineKeyboardButton(text="🎬 የቪዲዮ መመሪያ ሊንክ ቀይር", callback_data="admin_set_video")],
+        [InlineKeyboardButton(text="📢 ለሁሉም ተጠቃሚዎች መልእክት ላክ (Broadcast)", callback_data="admin_broadcast")],
         [InlineKeyboardButton(text="🔙 ወደ ዋናው ገጽ", callback_data="main_menu")]
     ])
     await callback.message.edit_text("⚙️ <b>የአድሚን መቆጣጠሪያ ፓነል</b>\n\nምን ማስተካከል ይፈልጋሉ?", reply_markup=keyboard, parse_mode="HTML")
+
+@router.callback_query(F.data == "admin_check_user")
+async def admin_check_user_start(callback: types.CallbackQuery, state: FSMContext):
+    if callback.from_user.id != ADMIN_ID:
+        return
+    await state.set_state(AdminCheckUserStates.waiting_for_user_id)
+    await callback.message.edit_text("🔍 የትኛውን ተጠቃሚ ማየት ይፈልጋሉ?\n\nእባክዎ የተጠቃሚውን <b>የቴሌግራም ID</b> ወይም <b>ዩዘርናም</b> ይጻፉልኝ:")
+
+@router.message(AdminCheckUserStates.waiting_for_user_id)
+async def process_admin_check_user(message: types.Message, state: FSMContext):
+    query_text = message.text.strip()
+    await state.clear()
+    
+    conn = sqlite3.connect("binary_mlm.db")
+    cursor = conn.cursor()
+    
+    if query_text.isdigit():
+        cursor.execute("SELECT * FROM users WHERE user_id = ?", (int(query_text),))
+    else:
+        cursor.execute("SELECT * FROM users WHERE username LIKE ?", (f"%{query_text.replace('@', '')}%",))
+        
+    user = cursor.fetchone()
+    
+    if not user:
+        conn.close()
+        await message.answer("❌ ተጠቃሚው በዳታቤዝ ውስጥ አልተገኘም። እንደገና /start በመጫን ይሞክሩ።")
+        return
+        
+    u_id, u_username, u_fullname, u_ref, u_parent, u_pos, u_active, u_bal, u_phone, u_pay = user
+    
+    cursor.execute("SELECT COUNT(*) FROM users WHERE referrer_id = ?", (u_id,))
+    total_referred = cursor.fetchone()[0]
+    cursor.execute("SELECT COUNT(*) FROM users WHERE referrer_id = ? AND is_active = 1", (u_id,))
+    active_referred = cursor.fetchone()[0]
+    
+    conn.close()
+    
+    status_text = "🟢 ንቁ (Active)" if u_active == 1 else "🔴 ስራ አልጀመረም (Pending)"
+    
+    info_text = (
+        f"📊 <b>የተጠቃሚ ዝርዝር መረጃ (Admin View)</b>\n\n"
+        f"🆔 ID: <code>{u_id}</code>\n"
+        f"👤 ስም: {u_fullname}\n"
+        f"ዩዘርናም: @{u_username if u_username else 'የሌለው'}\n"
+        f"📞 ስልክ: {u_phone if u_phone else 'አልገባም'}\n"
+        f"🏦 የክፍያ አካውንት: {u_pay if u_pay else 'አልገባም'}\n"
+        f"📌 ሁኔታ: {status_text}\n"
+        f"💰 ዋሌት ቀሪ ሂሳብ: <b>{u_bal} ብር</b>\n\n"
+        f"👥 <b>የሪፈራል መረጃ፦</b>\n"
+        f"• የጠራቸው ጠቅላላ ሰዎች: <b>{total_referred}</b>\n"
+        f"• ንቁ (Active) አባላት: <b>{active_referred}</b>\n"
+        f"• የጋበዘው ሰው (Referrer ID): {u_ref if u_ref else 'አስተዳዳሪ'}"
+    )
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="⚙️ ወደ አድሚን ፓነል ተመለስ", callback_data="admin_panel")]
+    ])
+    await message.answer(info_text, reply_markup=keyboard, parse_mode="HTML")
+
+@router.callback_query(F.data == "admin_set_video")
+async def admin_set_video_callback(callback: types.CallbackQuery, state: FSMContext):
+    if callback.from_user.id != ADMIN_ID:
+        return
+    await state.set_state(AdminConfig.waiting_for_video_link)
+    await callback.message.edit_text("🎬 አዲሱን የቪዲዮ መመሪያ ሊንክ ይጻፉልኝ፦")
+
+@router.message(AdminConfig.waiting_for_video_link)
+async def process_new_video_link(message: types.Message, state: FSMContext):
+    link = message.text.strip()
+    set_setting('tutorial_link', link)
+    await state.clear()
+    await message.answer(f"✅ የቪዲዮ መመሪያ ሊንክ በተሳካ ሁኔታ ተቀይሯል፦\n{link}")
+
+@router.callback_query(F.data == "admin_broadcast")
+async def admin_broadcast_start(callback: types.CallbackQuery, state: FSMContext):
+    if callback.from_user.id != ADMIN_ID:
+        return
+    await state.set_state(AdminConfig.waiting_for_broadcast)
+    await callback.message.edit_text("📢 ለሁሉም ተጠቃሚዎች ማስተላለፍ የሚፈልጉትን ጽሁፍ ወይም መልእክት ይጻፉልኝ:")
+
+@router.message(AdminConfig.waiting_for_broadcast)
+async def process_broadcast(message: types.Message, state: FSMContext):
+    text_to_send = message.text
+    await state.clear()
+    
+    conn = sqlite3.connect("binary_mlm.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT user_id FROM users")
+    users = cursor.fetchall()
+    conn.close()
+    
+    sent_count = 0
+    for u in users:
+        try:
+            await message.bot.send_message(u[0], f"📢 <b>ማስታወቂያ ከ 50 ሎሚ አስተዳዳሪ፦</b>\n\n{text_to_send}", parse_mode="HTML")
+            sent_count += 1
+            await asyncio.sleep(0.05)
+        except Exception:
+            pass
+            
+    await message.answer(f"✅ ማስታወቂያው ለተጠቃሚዎች ተልኳል (ተሳክቷል: {sent_count} ተጠቃሚዎች)")
 
 @router.callback_query(F.data == "admin_set_price")
 async def admin_set_price(callback: types.CallbackQuery, state: FSMContext):
@@ -281,133 +794,7 @@ async def process_new_comm(message: types.Message, state: FSMContext):
     except ValueError:
         await message.answer("❌ እባክዎ ትክክለኛ ቁጥር ብቻ ያስገቡ።")
 
-@router.callback_query(F.data == "admin_set_milestones")
-async def admin_set_m1(callback: types.CallbackQuery, state: FSMContext):
-    await state.set_state(AdminConfig.waiting_for_m1)
-    await callback.message.edit_text("አዲስ ዙር ለመጀመር ወይም ገደቦችን ለመቀየር፦\n\nየመጀመሪያውን ደረጃ ሽልማት ቁጥር ያስገቡ፦\n(ለምሳሌ: 3000)")
-
-@router.message(AdminConfig.waiting_for_m1)
-async def process_m1(message: types.Message, state: FSMContext):
-    try:
-        m1 = int(message.text)
-        set_setting('milestone_1', m1)
-        await state.set_state(AdminConfig.waiting_for_m2)
-        await message.answer(f"✅ ደረጃ 1 ሽልማት ወደ {m1} ተቀይሯል።\n\nአሁን የሁለተኛውን ደረጃ ሽልማት ቁጥር ያስገቡ፦\n(ለምሳሌ: 6000)")
-    except ValueError:
-        await message.answer("❌ እባክዎ ትክክለኛ ቁጥር ብቻ ያስገቡ።")
-
-@router.message(AdminConfig.waiting_for_m2)
-async def process_m2(message: types.Message, state: FSMContext):
-    try:
-        m2 = int(message.text)
-        set_setting('milestone_2', m2)
-        await state.set_state(AdminConfig.waiting_for_m3)
-        await message.answer(f"✅ ደረጃ 2 ሽልማት ወደ {m2} ተቀይሯል።\n\nበመጨረሻም የሶስተኛውን (ዋናውን) ሽልማት ቁጥር ያስገቡ፦\n(ለምሳሌ: 9000)")
-    except ValueError:
-        await message.answer("❌ እባክዎ ትክክለኛ ቁጥር ብቻ ያስገቡ።")
-
-@router.message(AdminConfig.waiting_for_m3)
-async def process_m3(message: types.Message, state: FSMContext):
-    try:
-        m3 = int(message.text)
-        set_setting('milestone_3', m3)
-        await message.answer("🎉 <b>በጣም ጥሩ! አዲሱ የሽልማት ዙር በተሳካ ሁኔታ ተጀምሯል። አባላት በአዲሱ ገደብ መሰረት ሽልማት ይጠብቃሉ።</b>", parse_mode="HTML")
-        await state.clear()
-    except ValueError:
-        await message.answer("❌ እባክዎ ትክክለኛ ቁጥር ብቻ ያስገቡ።")
-
-# ----------------- REGULAR MENUS -----------------
-@router.callback_query(F.data == "rewards_info")
-async def rewards_info_callback(callback: types.CallbackQuery):
-    total_active = get_total_users_count()
-    m1 = get_setting('milestone_1', int)
-    m2 = get_setting('milestone_2', int)
-    m3 = get_setting('milestone_3', int)
-    
-    text = (
-        f"🎁 <b>አጠቃላይ የሽልማት ዝግጅቶች እና አዲስ እቅዶች</b>\n\n"
-        f"አሁን ባለንበት ዙር የተዘጋጁልን ልዩ ሽልማቶች፦\n\n"
-        f"👥 አጠቃላይ ንቁ አባላት: <b>{total_active} / {m1}</b>\n"
-        f"🥉 <b>{m1} አባላት ሲሞሉ:</b> የመጀመሪያ ደረጃ ሽልማት ይዘጋጃል!\n\n"
-        f"👥 አጠቃላይ ንቁ አባላት: <b>{total_active} / {m2}</b>\n"
-        f"🥈 <b>{m2} አባላት ሲሞሉ:</b> መካከለኛ የትብብር ሽልማት!\n\n"
-        f"👥 አጠቃላይ ንቁ አባላት: <b>{total_active} / {m3}</b>\n"
-        f"🥇 <b>{m3} አባላት እና ከዚያ በላይ ሲሞሉ:</b> ታላቅ የአብሮነት ዋና ሽልማት!\n\n"
-        f"<i>ማሳሰቢያ፦ አንድ ዙር ሽልማት ሲጠናቀቅ በአድሚኑ በኩል አዲስ ዙር እና አዲስ ቁጥር ይፋ ይደረጋል!</i>"
-    )
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🔙 ወደ ዋናው ገጽ", callback_data="main_menu")]
-    ])
-    await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
-
-@router.callback_query(F.data == "my_account")
-async def my_account_callback(callback: types.CallbackQuery):
-    user = get_user(callback.from_user.id)
-    if not user:
-        await callback.message.answer("እባክዎ መጀመሪያ /start ይጫኑ።")
-        return
-
-    is_active = user[6] == 1
-    commission_percent = get_setting('commission_percent', float)
-    bot_info = await callback.bot.get_me()
-    ref_link = f"https://t.me/{bot_info.username}?start={callback.from_user.id}"
-
-    if not is_active:
-        text = (
-            f"👤 <b>የመለያ መረጃዎ</b>\n\n"
-            f"ስም: {callback.from_user.full_name}\n"
-            f"ሁኔታ: 🔴 ስራ አልጀመረም / ክፍያ አልፈጸሙም (Pending)\n"
-            f"የኮሚሽን ቀሪ ሂሳብ: {user[7]} ብር\n\n"
-            f"⚠️ <b>ማሳሰቢያ፦</b> የሪፈራል ሊንክዎን ለማግኘት እና አብሮነት ስራ ለመጀመር መጀመሪያ የፓኬጅ ክፍያ መፈጸም አለብዎት!"
-        )
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="💳 አሁኑኑ ክፍያ ይፈጽሙ (Activate)", callback_data="pay_chapa")],
-            [InlineKeyboardButton(text="🎁 የሽልማት እቅዶች", callback_data="rewards_info")],
-            [InlineKeyboardButton(text="🔙 ወደ ዋናው ገጽ", callback_data="main_menu")]
-        ])
-    else:
-        share_text = f"እንኳን ወደ አብሮነት በሰላም መጡ! አብረን እንስራ፦ {ref_link}"
-        share_url = f"https://t.me/share/url?url={ref_link}&text={quote_plus_text(share_text)}"
-        
-        text = (
-            f"👤 <b>የመለያ መረጃዎ</b>\n\n"
-            f"ስም: {callback.from_user.full_name}\n"
-            f"ሁኔታ: 🟢 ንቁ (Active)\n"
-            f"የኮሚሽን ({commission_percent}%) ቀሪ ሂሳብ: {user[7]} ብር\n\n"
-            f"🔗 <b>የእርስዎ የሪፈራል ሊንክ:</b>\n`{ref_link}`\n\n"
-            f"👇 ከታች ባለው ቁልፍ በመጫን ሊንኩን በቀጥታ ለጓደኞችዎ ወይም ግሩፖች ማጋራት (Share ማድረግ) ይችላሉ!"
-        )
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="📤 ሊንኩን ለጓደኛ ሼር ያድርጉ", url=share_url)],
-            [InlineKeyboardButton(text="🎁 የሽልማት እቅዶች", callback_data="rewards_info")],
-            [InlineKeyboardButton(text="🔙 ወደ ዋናው ገጽ", callback_data="main_menu")]
-        ])
-
-    await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
-
-def quote_plus_text(text):
-    import urllib.parse
-    return urllib.parse.quote(text)
-
-@router.callback_query(F.data == "main_menu")
-async def main_menu_callback(callback: types.CallbackQuery, state: FSMContext):
-    try:
-        await state.clear()
-    except Exception:
-        pass
-        
-    keyboard_buttons = [
-        [InlineKeyboardButton(text="💳 ፓኬጅ ይግዙ (Activate Account)", callback_data="pay_chapa")],
-        [InlineKeyboardButton(text="📊 የኔ አካውንት እና ሊንክ", callback_data="my_account")],
-        [InlineKeyboardButton(text="🎁 የሽልማት እቅዶች (Rewards)", callback_data="rewards_info")]
-    ]
-    if callback.from_user.id == ADMIN_ID:
-        keyboard_buttons.append([InlineKeyboardButton(text="⚙️ አድሚን ፓነል (Admin Settings)", callback_data="admin_panel")])
-
-    keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
-    await callback.message.edit_text("ወደ ዋናው አብሮነት ገጽ ተመልሰዋል፦", reply_markup=keyboard)
-
-# ----------------- PAYMENT PROCESS -----------------
+# ----------------- PAYMENT PROCESS (CHAPA) -----------------
 @router.callback_query(F.data == "pay_chapa")
 async def pay_with_chapa(callback: types.CallbackQuery):
     user = get_user(callback.from_user.id)
@@ -428,10 +815,10 @@ async def pay_with_chapa(callback: types.CallbackQuery):
         "currency": "ETB",
         "email": f"user{callback.from_user.id}@gmail.com",
         "first_name": callback.from_user.first_name or "User",
-        "last_name": callback.from_user.last_name or "Hamsa",
+        "last_name": callback.from_user.last_name or "Lomi",
         "tx_ref": tx_ref,
         "callback_url": "https://callback.render.com",
-        "customization[title]": "Hamsa Lomi",
+        "customization[title]": "50 Lomi",
         "customization[description]": f"Binary Package Fee ({package_price} ETB)"
     }
 
@@ -481,7 +868,7 @@ async def verify_payment(callback: types.CallbackQuery):
             user_id = callback.from_user.id
         else:
             conn.close()
-            await callback.answer("❌ የግብይት መረጃ አልተገኘም። እባክዎ መጀመሪያ 'ፓኬጅ ይግዙ' የሚለውን በመጫን አዲስ የክፍያ ሊንክ ያመንጩ።", show_alert=True)
+            await callback.answer("❌ የግብይት መረጃ አልተገኘም።", show_alert=True)
             return
     else:
         db_status, user_id = tx_row
@@ -530,33 +917,34 @@ async def verify_payment(callback: types.CallbackQuery):
                     except Exception as e:
                         logging.error(f"Failed to send admin notification: {e}")
 
-                total_active = get_total_users_count()
-                m1 = get_setting('milestone_1', int)
-                m2 = get_setting('milestone_2', int)
-                m3 = get_setting('milestone_3', int)
-                
-                milestone_msg = ""
-                if total_active == m3:
-                    milestone_msg = f"\n\n🏆 <b>እንኳን ደስ አሎት! {m3} አባላት ገደብ አልፏል - የታላቁ ሽልማት ዝግጅት ደርሷል!</b>"
-                elif total_active == m2:
-                    milestone_msg = f"\n\n🥈 <b>እንኳን ደስ አሎት! {m2} አባላት ገደብ አልፏል - የመካከለኛ ሽልማት ዝግጅት ተጀምሯል!</b>"
-                elif total_active == m1:
-                    milestone_msg = f"\n\n🥉 <b>እንኳን ደስ አሎት! {m1} አባላት ገደብ አልፏል - የምስረታ ሽልማት ዝግጅት ተጀምሯል!</b>"
-
                 keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                    [InlineKeyboardButton(text="📊 የኔ አካውንት እና ሊንክ", callback_data="my_account")],
-                    [InlineKeyboardButton(text="🎁 የሽልማት እቅዶች", callback_data="rewards_info")]
+                    [InlineKeyboardButton(text="📊 የኔ ዋሌት እና አካውንት", callback_data="my_account")],
+                    [InlineKeyboardButton(text="📢 ኦፊሴላዊ ቻናል", url=f"https://t.me/{CHANNEL_USERNAME.replace('@', '')}")]
                 ])
                 await callback.message.edit_text(
                     f"🎉 <b>እንኳን ደስ አሎት! ክፍያዎ በተሳካ ሁኔታ ተረጋግጧል።</b>\n\n"
-                    f"አካውንትዎ በባይነሪ ማትሪክስ ውስጥ በትክክል ሰፍሯል፤ አሁን የሪፈራል ሊንክዎ እና የሼር ቁልፍዎ ነቅቷል!{milestone_msg}",
+                    f"አካውንትዎ በባይነሪ ማትሪክስ ውስጥ በትክክል ሰፍሯል፤ አሁን የሪፈራል ሊንክዎ እና የዋሌት ቁልፍዎ ነቅቷል!",
                     reply_markup=keyboard,
                     parse_mode="HTML"
                 )
             else:
-                await callback.answer("❌ ክፍያዎ በባንክ በኩል ገና አልተረጋገጠም። እባክዎ ክፍያውን ከፈጸሙ በኋላ ትንሽ ቆይተው እንደገና ይሞክሩ።", show_alert=True)
+                await callback.answer("❌ ክፍያዎ በባንክ በኩል ገና አልተረጋገጠም። እባክዎ ትንሽ ቆይተው እንደገና ይሞክሩ።", show_alert=True)
 
-# ----------------- WEB SERVER FOR RENDER (FREE WEB SERVICE) -----------------
+def quote_plus_text(text):
+    import urllib.parse
+    return urllib.parse.quote(text)
+
+@router.callback_query(F.data == "main_menu")
+async def main_menu_callback(callback: types.CallbackQuery, state: FSMContext):
+    try:
+        await state.clear()
+    except Exception:
+        pass
+        
+    user = get_user(callback.from_user.id)
+    await show_main_menu(callback, user)
+
+# ----------------- WEB SERVER -----------------
 async def handle_ping(request):
     return web.Response(text="Bot is running!")
 
@@ -582,7 +970,7 @@ async def main():
 
     await start_web_server()
     
-    print("Hamsa Lomi Binary Bot is running with Live Keys...")
+    print("50 Lomi Binary Bot is running with Mini App integration...")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
