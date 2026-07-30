@@ -112,7 +112,6 @@ def get_total_users_count():
 def register_pending_user(user_id, username, fullname, referrer_id):
     conn = sqlite3.connect("binary_mlm.db")
     cursor = conn.cursor()
-    # ሪፈረር ከሌለ ወይም ራሱ ከሆነ Null ይደረጋል
     cursor.execute("""
         INSERT OR IGNORE INTO users (user_id, username, fullname, referrer_id, is_active) 
         VALUES (?, ?, ?, ?, 0)
@@ -198,7 +197,6 @@ async def cmd_start(message: types.Message, state: FSMContext):
             referrer_id
         )
     else:
-        # ቀድሞ የተመዘገበ ከሆነ ግን ሪፈረር ከሌለው እና አዲስ ሊንክ ይዞ ከመጣ ማዘመን ይቻላል
         if not user[3] and referrer_id and referrer_id != message.from_user.id:
             conn = sqlite3.connect("binary_mlm.db")
             cursor = conn.cursor()
@@ -456,19 +454,30 @@ async def pay_with_chapa(callback: types.CallbackQuery):
 
 @router.callback_query(F.data.startswith("verify_"))
 async def verify_payment(callback: types.CallbackQuery):
-    tx_ref = callback.data.split("_")[1]
+    tx_ref = callback.data.split("_", 1)[1]
     
     conn = sqlite3.connect("binary_mlm.db")
     cursor = conn.cursor()
     cursor.execute("SELECT status, user_id FROM transactions WHERE tx_ref = ?", (tx_ref,))
     tx_row = cursor.fetchone()
+    
+    # ዳታቤዝ ውስጥ ካልተገኘ በስተመጨረሻ የገባውን የዚህን ተጠቃሚ ፔንዲንግ ትራንዛክሽን በራስሰር በመፈለግ ስህተቱን እንከላከላለን
+    if not tx_row:
+        cursor.execute("SELECT tx_ref, status FROM transactions WHERE user_id = ? ORDER BY rowid DESC LIMIT 1", (callback.from_user.id,))
+        last_tx = cursor.fetchone()
+        if last_tx:
+            tx_ref = last_tx[0]
+            db_status = last_tx[1]
+            user_id = callback.from_user.id
+        else:
+            conn.close()
+            await callback.answer("❌ የግብይት መረጃ አልተገኘም። እባክዎ መጀመሪያ 'ፓኬጅ ይግዙ' የሚለውን በመጫን አዲስ የክፍያ ሊንክ ያመንጩ።", show_alert=True)
+            return
+    else:
+        db_status, user_id = tx_row
+
     conn.close()
 
-    if not tx_row:
-        await callback.answer("❌ የግብይት መረጃ አልተገኘም። እባክዎ እንደገና ይሞክሩ።", show_alert=True)
-        return
-
-    db_status, user_id = tx_row
     if db_status == 'SUCCESS':
         await callback.answer("✅ ይህ ክፍያ ቀድሞውኑ ተረጋግጦ አካውንትዎ ነቅቷል!", show_alert=True)
         return
@@ -481,60 +490,63 @@ async def verify_payment(callback: types.CallbackQuery):
         async with session.get(f"https://api.chapa.co/v1/transaction/verify/{tx_ref}", headers=headers) as resp:
             res_data = await resp.json()
             
-            if resp.status == 200 and res_data.get("status") == "success":
-                data_obj = res_data.get("data", {})
-                chapa_status = data_obj.get("status")
+            # ቻፓ ሰርቨር የተሳካ መሆኑን በቀጥታ ሲመልስ ወይም ደግሞ በባንክ በኩል የተከፈለ መሆኑን ሲያረጋግጥ
+            is_success_response = False
+            if resp.status == 200:
+                if res_data.get("status") == "success":
+                    data_obj = res_data.get("data", {})
+                    if data_obj.get("status") == "success":
+                        is_success_response = True
+
+            if is_success_response:
+                conn = sqlite3.connect("binary_mlm.db")
+                cursor = conn.cursor()
+                cursor.execute("UPDATE transactions SET status = 'SUCCESS' WHERE tx_ref = ?", (tx_ref,))
+                conn.commit()
+                conn.close()
+
+                # ተጠቃሚውን በማትሪክስ ውስጥ መመዝገብ እና ሪፈረር ኮሚሽን ማስተካከል
+                activated = activate_user_in_matrix(user_id)
                 
-                if chapa_status == "success":
-                    conn = sqlite3.connect("binary_mlm.db")
-                    cursor = conn.cursor()
-                    cursor.execute("UPDATE transactions SET status = 'SUCCESS' WHERE tx_ref = ?", (tx_ref,))
-                    conn.commit()
-                    conn.close()
+                if activated:
+                    package_price = get_setting('package_price', float)
+                    try:
+                        admin_notification_text = (
+                            f"🔔 <b>አዲስ የተሳካ ክፍያ (Payment Confirmed)!</b>\n\n"
+                            f"👤 ተጠቃሚ: {callback.from_user.full_name} (ID: <code>{user_id}</code>)\n"
+                            f"💰 የተከፈለ መጠን: <b>{package_price} ብር</b>\n"
+                            f"🔖 የግብይት ቁጥር (TxRef): <code>{tx_ref}</code>\n"
+                            f"🟢 ሁኔታ: አካውንቱ በማትሪክስ ውስጥ ሰፍሯል!"
+                        )
+                        await callback.bot.send_message(ADMIN_ID, admin_notification_text, parse_mode="HTML")
+                    except Exception as e:
+                        logging.error(f"Failed to send admin notification: {e}")
 
-                    activated = activate_user_in_matrix(user_id)
-                    
-                    if activated:
-                        package_price = get_setting('package_price', float)
-                        try:
-                            admin_notification_text = (
-                                f"🔔 <b>አዲስ የተሳካ ክፍያ (Payment Confirmed)!</b>\n\n"
-                                f"👤 ተጠቃሚ: {callback.from_user.full_name} (ID: <code>{user_id}</code>)\n"
-                                f"💰 የተከፈለ መጠን: <b>{package_price} ብር</b>\n"
-                                f"🔖 የግብይት ቁጥር (TxRef): <code>{tx_ref}</code>\n"
-                                f"🟢 ሁኔታ: አካውንቱ በማትሪክስ ውስጥ ሰፍሯል!"
-                            )
-                            await callback.bot.send_message(ADMIN_ID, admin_notification_text, parse_mode="HTML")
-                        except Exception as e:
-                            logging.error(f"Failed to send admin notification: {e}")
+                total_active = get_total_users_count()
+                m1 = get_setting('milestone_1', int)
+                m2 = get_setting('milestone_2', int)
+                m3 = get_setting('milestone_3', int)
+                
+                milestone_msg = ""
+                if total_active == m3:
+                    milestone_msg = f"\n\n🏆 <b>እንኳን ደስ አሎት! {m3} አባላት ገደብ አልፏል - የታላቁ ሽልማት ዝግጅት ደርሷል!</b>"
+                elif total_active == m2:
+                    milestone_msg = f"\n\n🥈 <b>እንኳን ደስ አሎት! {m2} አባላት ገደብ አልፏል - የመካከለኛ ሽልማት ዝግጅት ተጀምሯል!</b>"
+                elif total_active == m1:
+                    milestone_msg = f"\n\n🥉 <b>እንኳን ደስ አሎት! {m1} አባላት ገደብ አልፏል - የምስረታ ሽልማት ዝግጅት ተጀምሯል!</b>"
 
-                    total_active = get_total_users_count()
-                    m1 = get_setting('milestone_1', int)
-                    m2 = get_setting('milestone_2', int)
-                    m3 = get_setting('milestone_3', int)
-                    
-                    milestone_msg = ""
-                    if total_active == m3:
-                        milestone_msg = f"\n\n🏆 <b>እንኳን ደስ አሎት! {m3} አባላት ገደብ አልፏል - የታላቁ ሽልማት ዝግጅት ደርሷል!</b>"
-                    elif total_active == m2:
-                        milestone_msg = f"\n\n🥈 <b>እንኳን ደስ አሎት! {m2} አባላት ገደብ አልፏል - የመካከለኛ ሽልማት ዝግጅት ተጀምሯል!</b>"
-                    elif total_active == m1:
-                        milestone_msg = f"\n\n🥉 <b>እንኳን ደስ አሎት! {m1} አባላት ገደብ አልፏል - የምስረታ ሽልማት ዝግጅት ተጀምሯል!</b>"
-
-                    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                        [InlineKeyboardButton(text="📊 የኔ አካውንት እና ሊንክ", callback_data="my_account")],
-                        [InlineKeyboardButton(text="🎁 የሽልማት እቅዶች", callback_data="rewards_info")]
-                    ])
-                    await callback.message.edit_text(
-                        f"🎉 <b>እንኳን ደስ አሎት! ክፍያዎ በተሳካ ሁኔታ ተረጋግጧል።</b>\n\n"
-                        f"አካውንትዎ በባይነሪ ማትሪክስ ውስጥ በትክክል ሰፍሯል፤ አሁን የሪፈራል ሊንክዎ እና የሼር ቁልፍዎ ነቅቷል!{milestone_msg}",
-                        reply_markup=keyboard,
-                        parse_mode="HTML"
-                    )
-                else:
-                    await callback.answer("❌ ክፍያዎ ገና በባንክ በኩል አልተጠናቀቀም (Pending/Failed)። እባክዎ ክፍያውን ከፈጸሙ በኋላ እንደገና ይሞክሩ።", show_alert=True)
+                keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                    [InlineKeyboardButton(text="📊 የኔ አካውንት እና ሊንክ", callback_data="my_account")],
+                    [InlineKeyboardButton(text="🎁 የሽልማት እቅዶች", callback_data="rewards_info")]
+                ])
+                await callback.message.edit_text(
+                    f"🎉 <b>እንኳን ደስ አሎት! ክፍያዎ በተሳካ ሁኔታ ተረጋግጧል።</b>\n\n"
+                    f"አካውንትዎ በባይነሪ ማትሪክስ ውስጥ በትክክል ሰፍሯል፤ አሁን የሪፈራል ሊንክዎ እና የሼር ቁልፍዎ ነቅቷል!{milestone_msg}",
+                    reply_markup=keyboard,
+                    parse_mode="HTML"
+                )
             else:
-                await callback.answer("❌ ክፍያዎ ገና አልተጠናቀቀም ወይም አልተረጋገጠም። እባክዎ ክፍያውን ከፈጸሙ በኋላ ትንሽ ቆይተው እንደገና ይሞክሩ።", show_alert=True)
+                await callback.answer("❌ ክፍያዎ በባንክ በኩል ገና አልተረጋገጠም። እባክዎ ክፍያውን ከፈጸሙ በኋላ ትንሽ ቆይተው እንደገና ይሞክሩ።", show_alert=True)
 
 # ----------------- WEB SERVER FOR RENDER (FREE WEB SERVICE) -----------------
 async def handle_ping(request):
