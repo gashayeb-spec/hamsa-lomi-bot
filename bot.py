@@ -330,24 +330,49 @@ async def my_account_callback(callback: types.CallbackQuery):
         await callback.message.answer("እባክዎ መጀመሪያ /start ይጫኑ።")
         return
 
-    status = "🟢 ንቁ (Active)" if user[6] == 1 else "🔴 ስራ አልጀመረም (Pending)"
+    is_active = user[6] == 1
+    commission_percent = get_setting('commission_percent', float)
     bot_info = await callback.bot.get_me()
     ref_link = f"https://t.me/{bot_info.username}?start={callback.from_user.id}"
-    commission_percent = get_setting('commission_percent', float)
 
-    text = (
-        f"👤 <b>የመለያ መረጃዎ</b>\n\n"
-        f"ስም: {callback.from_user.full_name}\n"
-        f"ሁኔታ: {status}\n"
-        f"የኮሚሽን ({commission_percent}%) ቀሪ ሂሳብ: {user[7]} ብር\n\n"
-        f"🔗 <b>የእርስዎ የሪፈራል ሊንክ:</b>\n`{ref_link}`"
-    )
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="💳 አሁኑኑ ክፍያ ይፈጽሙ", callback_data="pay_chapa")],
-        [InlineKeyboardButton(text="🎁 የሽልማት እቅዶች", callback_data="rewards_info")],
-        [InlineKeyboardButton(text="🔙 ወደ ዋናው ገጽ", callback_data="main_menu")]
-    ])
+    # 1. ክፍያ ሳይፈጽም ሊንክ እንዳይሰጥ የተደረገ ጥብቅ ማጣሪያ
+    if not is_active:
+        text = (
+            f"👤 <b>የመለያ መረጃዎ</b>\n\n"
+            f"ስም: {callback.from_user.full_name}\n"
+            f"ሁኔታ: 🔴 ስራ አልጀመረም / ክፍያ አልፈጸሙም (Pending)\n"
+            f"የኮሚሽን ቀሪ ሂሳብ: {user[7]} ብር\n\n"
+            f"⚠️ <b>ማሳሰቢያ፦</b> የሪፈራል ሊንክዎን ለማግኘት እና አብሮነት ስራ ለመጀመር መጀመሪያ የፓኬጅ ክፍያ መፈጸም አለብዎት!"
+        )
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="💳 አሁኑኑ ክፍያ ይፈጽሙ (Activate)", callback_data="pay_chapa")],
+            [InlineKeyboardButton(text="🎁 የሽልማት እቅዶች", callback_data="rewards_info")],
+            [InlineKeyboardButton(text="🔙 ወደ ዋናው ገጽ", callback_data="main_menu")]
+        ])
+    else:
+        # 2. ክፍያ የፈጸመ ከሆነ ሊንኩን እና የቴሌግራም Direct Share ቁልፍን ማሳየት
+        share_text = f"እንኳን ወደ አብሮነት በሰላም መጡ! አብረን እንስራ፦ {ref_link}"
+        share_url = f"https://t.me/share/url?url={ref_link}&text={quote_plus_text(share_text)}"
+        
+        text = (
+            f"👤 <b>የመለያ መረጃዎ</b>\n\n"
+            f"ስም: {callback.from_user.full_name}\n"
+            f"ሁኔታ: 🟢 ንቁ (Active)\n"
+            f"የኮሚሽን ({commission_percent}%) ቀሪ ሂሳብ: {user[7]} ብር\n\n"
+            f"🔗 <b>የእርስዎ የሪፈራል ሊንክ:</b>\n`{ref_link}`\n\n"
+            f"👇 ከታች ባለው ቁልፍ በመጫን ሊንኩን በቀጥታ ለጓደኞችዎ ወይም ግሩፖች ማጋራት (Share ማድረግ) ይችላሉ!"
+        )
+        keyboard = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="📤 ሊንኩን ለጓደኛ ሼር ያድርጉ", url=share_url)],
+            [InlineKeyboardButton(text="🎁 የሽልማት እቅዶች", callback_data="rewards_info")],
+            [InlineKeyboardButton(text="🔙 ወደ ዋናው ገጽ", callback_data="main_menu")]
+        ])
+
     await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
+
+def quote_plus_text(text):
+    import urllib.parse
+    return urllib.parse.quote(text)
 
 @router.callback_query(F.data == "main_menu")
 async def main_menu_callback(callback: types.CallbackQuery, state: FSMContext):
@@ -444,6 +469,20 @@ async def verify_payment(callback: types.CallbackQuery):
                     user_id = row[0]
                     activate_user_in_matrix(user_id)
                     
+                    # 3. አድሚኑ ክፍያ መፈጸሙን የሚያውቅበት ኖቲፊኬሽን (Admin Notification) መላክ
+                    package_price = get_setting('package_price', float)
+                    try:
+                        admin_notification_text = (
+                            f"🔔 <b>አዲስ የተሳካ ክፍያ (Payment Confirmed)!</b>\n\n"
+                            f"👤 ተጠቃሚ: {callback.from_user.full_name} (ID: <code>{user_id}</code>)\n"
+                            f"💰 የተከፈለ መጠን: <b>{package_price} ብር</b>\n"
+                            f"🔖 የግብይት ቁጥር (TxRef): <code>{tx_ref}</code>\n"
+                            f"🟢 ሁኔታ: አካውንቱ በማትሪክስ ውስጥ ሰፍሯል!"
+                        )
+                        await callback.bot.send_message(ADMIN_ID, admin_notification_text, parse_mode="HTML")
+                    except Exception as e:
+                        logging.error(f"Failed to send admin notification: {e}")
+
                     total_active = get_total_users_count()
                     m1 = get_setting('milestone_1', int)
                     m2 = get_setting('milestone_2', int)
@@ -458,12 +497,12 @@ async def verify_payment(callback: types.CallbackQuery):
                         milestone_msg = f"\n\n🥉 <b>እንኳን ደስ አሎት! {m1} አባላት ገደብ አልፏል - የምስረታ ሽልማት ዝግጅት ተጀምሯል!</b>"
 
                     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                        [InlineKeyboardButton(text="📊 የኔ አካውንት", callback_data="my_account")],
+                        [InlineKeyboardButton(text="📊 የኔ አካውንት እና ሊንክ", callback_data="my_account")],
                         [InlineKeyboardButton(text="🎁 የሽልማት እቅዶች", callback_data="rewards_info")]
                     ])
                     await callback.message.edit_text(
                         f"🎉 <b>እንኳን ደስ አሎት! ክፍያዎ በተሳካ ሁኔታ ተረጋግጧል።</b>\n\n"
-                        f"አካውንትዎ በባይነሪ ማትሪክስ ውስጥ በትክክል ሰፍሯል።{milestone_msg}",
+                        f"አካውንትዎ በባይነሪ ማትሪክስ ውስጥ በትክክል ሰፍሯል፤ አሁን የሪፈራል ሊንክዎ እና የሼር ቁልፍዎ ነቅቷል!{milestone_msg}",
                         reply_markup=keyboard,
                         parse_mode="HTML"
                     )
