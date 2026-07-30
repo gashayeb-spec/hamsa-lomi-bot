@@ -7,11 +7,12 @@ from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
 import aiohttp
+from aiohttp import web
 
 # ----------------- CONFIGURATIONS -----------------
-TOKEN = "8909326861:AAFXhsQr6ArKcPXPSlnSZSCYfyxA8pSenx4"
+TOKEN = "8975591959:AAGuD23s5I3jCcBVGc7WEXeO-Kru76NAE2w"
 ADMIN_ID = 5351353727
 CHAPA_SECRET_KEY = "CHASECK-SncZN81Mx80yQcPiXJwRXDF6MdgchtNV"
 CHAPA_PUBLIC_KEY = "CHAPUBK-hLBEJPiKDlRpfBCqTczyE1OsnrrK3Zhj"
@@ -298,12 +299,10 @@ async def process_m3(message: types.Message, state: FSMContext):
     except ValueError:
         await message.answer("❌ እባክዎ ትክክለኛ ቁጥር ብቻ ያስገቡ።")
 
-
 # ----------------- REGULAR MENUS -----------------
 @router.callback_query(F.data == "rewards_info")
 async def rewards_info_callback(callback: types.CallbackQuery):
     total_active = get_total_users_count()
-    
     m1 = get_setting('milestone_1', int)
     m2 = get_setting('milestone_2', int)
     m3 = get_setting('milestone_3', int)
@@ -319,7 +318,6 @@ async def rewards_info_callback(callback: types.CallbackQuery):
         f"🥇 <b>{m3} አባላት እና ከዚያ በላይ ሲሞሉ:</b> ታላቅ የአብሮነት ዋና ሽልማት!\n\n"
         f"<i>ማሳሰቢያ፦ አንድ ዙር ሽልማት ሲጠናቀቅ በአድሚኑ በኩል አዲስ ዙር እና አዲስ ቁጥር ይፋ ይደረጋል!</i>"
     )
-    
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🔙 ወደ ዋናው ገጽ", callback_data="main_menu")]
     ])
@@ -335,7 +333,6 @@ async def my_account_callback(callback: types.CallbackQuery):
     status = "🟢 ንቁ (Active)" if user[6] == 1 else "🔴 ስራ አልጀመረም (Pending)"
     bot_info = await callback.bot.get_me()
     ref_link = f"https://t.me/{bot_info.username}?start={callback.from_user.id}"
-    
     commission_percent = get_setting('commission_percent', float)
 
     text = (
@@ -345,7 +342,6 @@ async def my_account_callback(callback: types.CallbackQuery):
         f"የኮሚሽን ({commission_percent}%) ቀሪ ሂሳብ: {user[7]} ብር\n\n"
         f"🔗 <b>የእርስዎ የሪፈራል ሊንክ:</b>\n`{ref_link}`"
     )
-    
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="💳 አሁኑኑ ክፍያ ይፈጽሙ", callback_data="pay_chapa")],
         [InlineKeyboardButton(text="🎁 የሽልማት እቅዶች", callback_data="rewards_info")],
@@ -366,7 +362,6 @@ async def main_menu_callback(callback: types.CallbackQuery, state: FSMContext):
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
     await callback.message.edit_text("ወደ ዋናው አብሮነት ገጽ ተመልሰዋል፦", reply_markup=keyboard)
-
 
 # ----------------- PAYMENT PROCESS -----------------
 @router.callback_query(F.data == "pay_chapa")
@@ -475,10 +470,33 @@ async def verify_payment(callback: types.CallbackQuery):
             else:
                 await callback.answer("❌ ክፍያዎ ገና አልተጠናቀቀም ወይም አልተረጋገጠም። እባክዎ ክፍያውን ከፈጸሙ በኋላ ትንሽ ቆይተው እንደገና ይሞክሩ።", show_alert=True)
 
+# ----------------- WEB SERVER FOR RENDER (FREE WEB SERVICE) -----------------
+async def handle_ping(request):
+    return web.Response(text="Bot is running!")
+
+async def start_web_server():
+    app = web.Application()
+    app.router.add_get("/", handle_ping)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    port = int(os.environ.get("PORT", 10000))
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+    print(f"Web server started on port {port}")
+
 async def main():
     bot = Bot(token=TOKEN)
     dp = Dispatcher(storage=MemoryStorage())
     dp.include_router(router)
+    
+    # Set up Telegram menu commands (/start)
+    commands = [
+        BotCommand(command="start", description="ቦቱን ለመጀመር / ዋናው ገጽ"),
+    ]
+    await bot.set_my_commands(commands)
+
+    # Start the web server alongside the bot for Render Web Service compatibility
+    await start_web_server()
     
     print("Hamsa Lomi Binary Bot is running with Live Keys...")
     await dp.start_polling(bot)
