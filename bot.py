@@ -177,7 +177,11 @@ def find_available_position(start_user_id):
 # ----------------- BOT HANDLERS -----------------
 @router.message(CommandStart())
 async def cmd_start(message: types.Message, state: FSMContext):
-    await state.clear()
+    try:
+        await state.clear()
+    except Exception:
+        pass
+
     args = message.text.split()
     referrer_id = None
     if len(args) > 1:
@@ -186,14 +190,14 @@ async def cmd_start(message: types.Message, state: FSMContext):
             if referrer_id == message.from_user.id:
                 referrer_id = None
         except ValueError:
-            pass
+            referrer_id = None
 
     user = get_user(message.from_user.id)
     if not user:
         register_pending_user(
             message.from_user.id,
-            message.from_user.username,
-            message.from_user.full_name,
+            message.from_user.username or "",
+            message.from_user.full_name or "User",
             referrer_id
         )
     else:
@@ -227,7 +231,10 @@ async def cmd_start(message: types.Message, state: FSMContext):
         f"የስራ ኮሚሽን: <b>{current_commission}%</b>\n\n"
         f"ማትሪክስ ውስጥ ለመሰለፍ እና አብረን ለመስራት መግቢያ ክፍያውን መፈጸም ይኖርብዎታል።"
     )
-    await message.answer(welcome_text, reply_markup=keyboard, parse_mode="HTML")
+    try:
+        await message.answer(welcome_text, reply_markup=keyboard, parse_mode="HTML")
+    except Exception as e:
+        logging.error(f"Error in cmd_start answer: {e}")
 
 # ----------------- ADMIN PANEL -----------------
 @router.callback_query(F.data == "admin_panel")
@@ -384,7 +391,11 @@ def quote_plus_text(text):
 
 @router.callback_query(F.data == "main_menu")
 async def main_menu_callback(callback: types.CallbackQuery, state: FSMContext):
-    await state.clear()
+    try:
+        await state.clear()
+    except Exception:
+        pass
+        
     keyboard_buttons = [
         [InlineKeyboardButton(text="💳 ፓኬጅ ይግዙ (Activate Account)", callback_data="pay_chapa")],
         [InlineKeyboardButton(text="📊 የኔ አካውንት እና ሊንክ", callback_data="my_account")],
@@ -461,7 +472,6 @@ async def verify_payment(callback: types.CallbackQuery):
     cursor.execute("SELECT status, user_id FROM transactions WHERE tx_ref = ?", (tx_ref,))
     tx_row = cursor.fetchone()
     
-    # ዳታቤዝ ውስጥ ካልተገኘ በስተመጨረሻ የገባውን የዚህን ተጠቃሚ ፔንዲንግ ትራንዛክሽን በራስሰር በመፈለግ ስህተቱን እንከላከላለን
     if not tx_row:
         cursor.execute("SELECT tx_ref, status FROM transactions WHERE user_id = ? ORDER BY rowid DESC LIMIT 1", (callback.from_user.id,))
         last_tx = cursor.fetchone()
@@ -490,7 +500,6 @@ async def verify_payment(callback: types.CallbackQuery):
         async with session.get(f"https://api.chapa.co/v1/transaction/verify/{tx_ref}", headers=headers) as resp:
             res_data = await resp.json()
             
-            # ቻፓ ሰርቨር የተሳካ መሆኑን በቀጥታ ሲመልስ ወይም ደግሞ በባንክ በኩል የተከፈለ መሆኑን ሲያረጋግጥ
             is_success_response = False
             if resp.status == 200:
                 if res_data.get("status") == "success":
@@ -505,7 +514,6 @@ async def verify_payment(callback: types.CallbackQuery):
                 conn.commit()
                 conn.close()
 
-                # ተጠቃሚውን በማትሪክስ ውስጥ መመዝገብ እና ሪፈረር ኮሚሽን ማስተካከል
                 activated = activate_user_in_matrix(user_id)
                 
                 if activated:
