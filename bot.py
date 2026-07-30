@@ -112,8 +112,11 @@ def get_total_users_count():
 def register_pending_user(user_id, username, fullname, referrer_id):
     conn = sqlite3.connect("binary_mlm.db")
     cursor = conn.cursor()
-    cursor.execute("INSERT OR IGNORE INTO users (user_id, username, fullname, referrer_id, is_active) VALUES (?, ?, ?, ?, 0)",
-                   (user_id, username, fullname, referrer_id))
+    # ሪፈረር ከሌለ ወይም ራሱ ከሆነ Null ይደረጋል
+    cursor.execute("""
+        INSERT OR IGNORE INTO users (user_id, username, fullname, referrer_id, is_active) 
+        VALUES (?, ?, ?, ?, 0)
+    """, (user_id, username, fullname, referrer_id))
     conn.commit()
     conn.close()
 
@@ -121,7 +124,6 @@ def activate_user_in_matrix(user_id):
     conn = sqlite3.connect("binary_mlm.db")
     cursor = conn.cursor()
     
-    # አስቀድሞ ንቁ መሆኑን ማረጋገጥ
     cursor.execute("SELECT is_active, referrer_id FROM users WHERE user_id = ?", (user_id,))
     res = cursor.fetchone()
     if not res or res[0] == 1:
@@ -195,6 +197,14 @@ async def cmd_start(message: types.Message, state: FSMContext):
             message.from_user.full_name,
             referrer_id
         )
+    else:
+        # ቀድሞ የተመዘገበ ከሆነ ግን ሪፈረር ከሌለው እና አዲስ ሊንክ ይዞ ከመጣ ማዘመን ይቻላል
+        if not user[3] and referrer_id and referrer_id != message.from_user.id:
+            conn = sqlite3.connect("binary_mlm.db")
+            cursor = conn.cursor()
+            cursor.execute("UPDATE users SET referrer_id = ? WHERE user_id = ?", (referrer_id, message.from_user.id))
+            conn.commit()
+            conn.close()
 
     keyboard_buttons = [
         [InlineKeyboardButton(text="💳 ፓኬጅ ይግዙ (Activate Account)", callback_data="pay_chapa")],
@@ -448,7 +458,6 @@ async def pay_with_chapa(callback: types.CallbackQuery):
 async def verify_payment(callback: types.CallbackQuery):
     tx_ref = callback.data.split("_")[1]
     
-    # አስቀድሞ ይህ tx_ref በዳታቤዝ ውስጥ SUCCESS መሆኑን ማረጋገጥ (ድግግሞሽን ለመከላከል)
     conn = sqlite3.connect("binary_mlm.db")
     cursor = conn.cursor()
     cursor.execute("SELECT status, user_id FROM transactions WHERE tx_ref = ?", (tx_ref,))
@@ -472,7 +481,6 @@ async def verify_payment(callback: types.CallbackQuery):
         async with session.get(f"https://api.chapa.co/v1/transaction/verify/{tx_ref}", headers=headers) as resp:
             res_data = await resp.json()
             
-            # የቻፓ ሰርቨር ምላሽ ትክክለኛ success መሆኑን እና የተከፈለው ገንዘብ ትክክለኛ መሆኑን ማረጋገጥ
             if resp.status == 200 and res_data.get("status") == "success":
                 data_obj = res_data.get("data", {})
                 chapa_status = data_obj.get("status")
@@ -484,11 +492,9 @@ async def verify_payment(callback: types.CallbackQuery):
                     conn.commit()
                     conn.close()
 
-                    # ተጠቃሚውን በማትሪክስ ውስጥ መመዝገብ
                     activated = activate_user_in_matrix(user_id)
                     
                     if activated:
-                        # ለአድሚን ኖቲፊኬሽን መላክ
                         package_price = get_setting('package_price', float)
                         try:
                             admin_notification_text = (
