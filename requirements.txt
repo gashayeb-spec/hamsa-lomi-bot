@@ -1,3 +1,10 @@
-aiogram==3.13.0
+aiogram==3.13.1
 aiohttp==3.10.5
-
+pydantic==2.9.2
+pydantic_core==2.23.4
+idna==3.8
+multidict==6.0.5
+yarl==1.9.4
+propcache==0.2.0
+frozenlist==1.4.1
+async-timeout==4.0.3
