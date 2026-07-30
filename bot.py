@@ -121,13 +121,14 @@ def activate_user_in_matrix(user_id):
     conn = sqlite3.connect("binary_mlm.db")
     cursor = conn.cursor()
     
-    cursor.execute("SELECT referrer_id FROM users WHERE user_id = ?", (user_id,))
+    # አስቀድሞ ንቁ መሆኑን ማረጋገጥ
+    cursor.execute("SELECT is_active, referrer_id FROM users WHERE user_id = ?", (user_id,))
     res = cursor.fetchone()
-    if not res:
+    if not res or res[0] == 1:
         conn.close()
-        return
+        return False
     
-    referrer_id = res[0]
+    referrer_id = res[1]
     parent_id, position = find_available_position(referrer_id if referrer_id else ADMIN_ID)
     
     package_price = get_setting('package_price', float)
@@ -143,6 +144,7 @@ def activate_user_in_matrix(user_id):
     
     conn.commit()
     conn.close()
+    return True
 
 def find_available_position(start_user_id):
     conn = sqlite3.connect("binary_mlm.db")
@@ -335,7 +337,6 @@ async def my_account_callback(callback: types.CallbackQuery):
     bot_info = await callback.bot.get_me()
     ref_link = f"https://t.me/{bot_info.username}?start={callback.from_user.id}"
 
-    # 1. ክፍያ ሳይፈጽም ሊንክ እንዳይሰጥ የተደረገ ጥብቅ ማጣሪያ
     if not is_active:
         text = (
             f"👤 <b>የመለያ መረጃዎ</b>\n\n"
@@ -350,7 +351,6 @@ async def my_account_callback(callback: types.CallbackQuery):
             [InlineKeyboardButton(text="🔙 ወደ ዋናው ገጽ", callback_data="main_menu")]
         ])
     else:
-        # 2. ክፍያ የፈጸመ ከሆነ ሊንኩን እና የቴሌግራም Direct Share ቁልፍን ማሳየት
         share_text = f"እንኳን ወደ አብሮነት በሰላም መጡ! አብረን እንስራ፦ {ref_link}"
         share_url = f"https://t.me/share/url?url={ref_link}&text={quote_plus_text(share_text)}"
         
@@ -448,6 +448,22 @@ async def pay_with_chapa(callback: types.CallbackQuery):
 async def verify_payment(callback: types.CallbackQuery):
     tx_ref = callback.data.split("_")[1]
     
+    # አስቀድሞ ይህ tx_ref በዳታቤዝ ውስጥ SUCCESS መሆኑን ማረጋገጥ (ድግግሞሽን ለመከላከል)
+    conn = sqlite3.connect("binary_mlm.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT status, user_id FROM transactions WHERE tx_ref = ?", (tx_ref,))
+    tx_row = cursor.fetchone()
+    conn.close()
+
+    if not tx_row:
+        await callback.answer("❌ የግብይት መረጃ አልተገኘም። እባክዎ እንደገና ይሞክሩ።", show_alert=True)
+        return
+
+    db_status, user_id = tx_row
+    if db_status == 'SUCCESS':
+        await callback.answer("✅ ይህ ክፍያ ቀድሞውኑ ተረጋግጦ አካውንትዎ ነቅቷል!", show_alert=True)
+        return
+
     headers = {
         "Authorization": f"Bearer {CHAPA_SECRET_KEY}"
     }
@@ -456,32 +472,35 @@ async def verify_payment(callback: types.CallbackQuery):
         async with session.get(f"https://api.chapa.co/v1/transaction/verify/{tx_ref}", headers=headers) as resp:
             res_data = await resp.json()
             
-            if res_data.get("status") == "success":
-                conn = sqlite3.connect("binary_mlm.db")
-                cursor = conn.cursor()
-                cursor.execute("UPDATE transactions SET status = 'SUCCESS' WHERE tx_ref = ?", (tx_ref,))
-                cursor.execute("SELECT user_id FROM transactions WHERE tx_ref = ?", (tx_ref,))
-                row = cursor.fetchone()
-                conn.commit()
-                conn.close()
+            # የቻፓ ሰርቨር ምላሽ ትክክለኛ success መሆኑን እና የተከፈለው ገንዘብ ትክክለኛ መሆኑን ማረጋገጥ
+            if resp.status == 200 and res_data.get("status") == "success":
+                data_obj = res_data.get("data", {})
+                chapa_status = data_obj.get("status")
+                
+                if chapa_status == "success":
+                    conn = sqlite3.connect("binary_mlm.db")
+                    cursor = conn.cursor()
+                    cursor.execute("UPDATE transactions SET status = 'SUCCESS' WHERE tx_ref = ?", (tx_ref,))
+                    conn.commit()
+                    conn.close()
 
-                if row:
-                    user_id = row[0]
-                    activate_user_in_matrix(user_id)
+                    # ተጠቃሚውን በማትሪክስ ውስጥ መመዝገብ
+                    activated = activate_user_in_matrix(user_id)
                     
-                    # 3. አድሚኑ ክፍያ መፈጸሙን የሚያውቅበት ኖቲፊኬሽን (Admin Notification) መላክ
-                    package_price = get_setting('package_price', float)
-                    try:
-                        admin_notification_text = (
-                            f"🔔 <b>አዲስ የተሳካ ክፍያ (Payment Confirmed)!</b>\n\n"
-                            f"👤 ተጠቃሚ: {callback.from_user.full_name} (ID: <code>{user_id}</code>)\n"
-                            f"💰 የተከፈለ መጠን: <b>{package_price} ብር</b>\n"
-                            f"🔖 የግብይት ቁጥር (TxRef): <code>{tx_ref}</code>\n"
-                            f"🟢 ሁኔታ: አካውንቱ በማትሪክስ ውስጥ ሰፍሯል!"
-                        )
-                        await callback.bot.send_message(ADMIN_ID, admin_notification_text, parse_mode="HTML")
-                    except Exception as e:
-                        logging.error(f"Failed to send admin notification: {e}")
+                    if activated:
+                        # ለአድሚን ኖቲፊኬሽን መላክ
+                        package_price = get_setting('package_price', float)
+                        try:
+                            admin_notification_text = (
+                                f"🔔 <b>አዲስ የተሳካ ክፍያ (Payment Confirmed)!</b>\n\n"
+                                f"👤 ተጠቃሚ: {callback.from_user.full_name} (ID: <code>{user_id}</code>)\n"
+                                f"💰 የተከፈለ መጠን: <b>{package_price} ብር</b>\n"
+                                f"🔖 የግብይት ቁጥር (TxRef): <code>{tx_ref}</code>\n"
+                                f"🟢 ሁኔታ: አካውንቱ በማትሪክስ ውስጥ ሰፍሯል!"
+                            )
+                            await callback.bot.send_message(ADMIN_ID, admin_notification_text, parse_mode="HTML")
+                        except Exception as e:
+                            logging.error(f"Failed to send admin notification: {e}")
 
                     total_active = get_total_users_count()
                     m1 = get_setting('milestone_1', int)
@@ -506,6 +525,8 @@ async def verify_payment(callback: types.CallbackQuery):
                         reply_markup=keyboard,
                         parse_mode="HTML"
                     )
+                else:
+                    await callback.answer("❌ ክፍያዎ ገና በባንክ በኩል አልተጠናቀቀም (Pending/Failed)። እባክዎ ክፍያውን ከፈጸሙ በኋላ እንደገና ይሞክሩ።", show_alert=True)
             else:
                 await callback.answer("❌ ክፍያዎ ገና አልተጠናቀቀም ወይም አልተረጋገጠም። እባክዎ ክፍያውን ከፈጸሙ በኋላ ትንሽ ቆይተው እንደገና ይሞክሩ።", show_alert=True)
 
@@ -528,13 +549,11 @@ async def main():
     dp = Dispatcher(storage=MemoryStorage())
     dp.include_router(router)
     
-    # Set up Telegram menu commands (/start)
     commands = [
         BotCommand(command="start", description="ቦቱን ለመጀመር / ዋናው ገጽ"),
     ]
     await bot.set_my_commands(commands)
 
-    # Start the web server alongside the bot for Render Web Service compatibility
     await start_web_server()
     
     print("Hamsa Lomi Binary Bot is running with Live Keys...")
