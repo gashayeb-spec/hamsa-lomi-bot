@@ -1,4 +1,4 @@
-Import asyncio
+import asyncio
 import logging
 import os
 import sqlite3
@@ -330,8 +330,8 @@ async def cmd_start(message: types.Message, state: FSMContext):
         await state.set_state(UserProfileSetup.waiting_for_phone)
         await message.answer(
             f"ሰላም <b>{message.from_user.full_name}</b>!\n\n"
-            f"እንኳን ወደ 50 ሎሚ በሰላም መጡ! 🤝 (በጋራ እናድጋለን፣ በጋራ እንበለጽጋለን!)\n"
-            f"የሪፈራል ሊንክ ከመሰጠቱ በፊት እባክዎ አሰራሩን ለማስተካከል <b>ስልክ ቁጥርዎን</b> ይጻፉልኝ፦\n"
+            f"እንኳን ወደ 50 ሎሚ በሰላም መጡ! 🤝 (በጋራ እንበለጽጋለን!)\n"
+            f"የሪፈራል ሊንክ ከመሰጠቱ በፊት እባክዎ <b>ስልክ ቁጥርዎን</b> ይጻፉልኝ፦\n"
             f"<i>(ምሳሌ: 0911223344)</i>",
             parse_mode="HTML"
         )
@@ -713,7 +713,7 @@ async def process_p2p_recipient(message: types.Message, state: FSMContext):
     await message.answer(
         f"✅ ተቀባይ ተገኝቷል: <b>{recipient[2]}</b> ({recipient_wallet})\n\n"
         f"ቀሪ ሂሳብዎ: <b>{user[7]} Dollars</b>\n"
-        f"ማስተላለፍ የሚፈልጉትን የብር መጠን ይጻፉልኝ፦",
+        f"ማስተላለፍ የሚፈልጉትን የብር መጠን ጻፉልኝ፦",
         parse_mode="HTML"
     )
 
@@ -870,7 +870,7 @@ async def my_account_callback(callback: types.CallbackQuery):
             InlineKeyboardButton(text="Next ➡️", callback_data="digital_services")
         ])
     else:
-        share_text = f"እንኳን ወደ 50 ሎሚ በሰላም መጡ! በጋራ እናድጋለን፣ በጋራ እንበለጽጋለን! {ref_link}"
+        share_text = f"እንኳን ወደ 50 ሎሚ በሰላም መጡ! በጋራ እንበለጽጋለን! {ref_link}"
         share_url = f"https://t.me/share/url?url={ref_link}&text={quote_plus_text(share_text)}"
         
         text = (
@@ -1324,21 +1324,9 @@ async def main_menu_callback(callback: types.CallbackQuery, state: FSMContext):
     user = get_user(callback.from_user.id)
     await show_main_menu(callback, user)
 
-# ----------------- WEB SERVER (FIXED PORT) -----------------
+# ----------------- WEB SERVER & MAIN APP LAUNCHER -----------------
 async def handle_ping(request):
     return web.Response(text="50 Lomi Bot is running successfully!")
-
-async def start_web_server():
-    app = web.Application()
-    app.router.add_get("/", handle_ping)
-    runner = web.AppRunner(app)
-    await runner.setup()
-    
-    # 💡 Render የሚሰጠውን ፖርት በትክክል እንዲጠቀም ተስተካክሏል
-    port = int(os.environ.get("PORT", 10000))
-    site = web.TCPSite(runner, "0.0.0.0", port)
-    await site.start()
-    logging.info(f"Web server started on port {port}")
 
 async def main():
     bot = Bot(token=TOKEN)
@@ -1346,12 +1334,21 @@ async def main():
     dp.include_router(router)
     await bot.set_my_commands([BotCommand(command="start", description="ቦቱን ለመጀመር")])
     
-    # ዌብ ሰርቨሩን እና የቦት ፖሊንግ ሂደትን በአንድ ላይ ማስጀመር
-    await start_web_server()
+    # 1. ዌብ ሰርቨሩን በመጀመሪያ ማስጀመር (Render ፖርቱን በፍጥነት እንዲያገኘው)
+    app = web.Application()
+    app.router.add_get("/", handle_ping)
+    runner = web.AppRunner(app)
+    await runner.setup()
     
-    # የቆዩ ድብልቆችን (Pending Updates) ለማጽዳት
+    port = int(os.environ.get("PORT", 10000))
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+    logging.info(f"Web server started on port {port}")
+    
+    # 2. የቆዩ ድብልቆችን (Pending Updates) ማጽዳት
     await bot.delete_webhook(drop_pending_updates=True)
     
+    # 3. የቦት ፖሊንግ ሂደቱን ማስጀመር
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
