@@ -8,7 +8,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 
 # --- CONFIGURATIONS ---
-BOT_TOKEN = "8909326861:AAGcgDU1iwDewhFyDcm2LcEKTRdnTHHQnN0"
+BOT_TOKEN = "8975591959:AAH6C2cewHyPMskuGlWw6_cwxw_MRHtYl8c"
 CHAPA_SECRET_KEY = "CHASECK-SncZN81Mx80yQcPiXJwRXDF6MdgchtNV"
 CHAPA_PUBLIC_KEY = "CHAPAPUBK-hLBEJPiKDlRpfBCqTczyE10snrrK3Zhj"
 ADMIN_USER_ID = 5351353727  # የእርስዎ ዩዘር አይዲ
