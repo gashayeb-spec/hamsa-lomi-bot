@@ -8,7 +8,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 
 # --- CONFIGURATIONS ---
-BOT_TOKEN = "8975591959:AAH6C2cewHyPMskuGlWw6_cwxw_MRHtYl8c"
+BOT_TOKEN = "8909326861:AAGcgDU1iwDewhFyDcm2LcEKTRdnTHHQnN0"
 CHAPA_SECRET_KEY = "CHASECK-SncZN81Mx80yQcPiXJwRXDF6MdgchtNV"
 CHAPA_PUBLIC_KEY = "CHAPAPUBK-hLBEJPiKDlRpfBCqTczyE10snrrK3Zhj"
 ADMIN_USER_ID = 5351353727  # የእርስዎ ዩዘር አይዲ
@@ -23,13 +23,6 @@ dp = Dispatcher(storage=MemoryStorage())
 
 # ዳታቤዝ ምትክ 
 users_db = {}  
-# { 
-#    user_id: {
-#        "referred_by": id, "left": None, "right": None, 
-#        "paid": False, "balance": 0.0,
-#        "cbe_account": "---", "telebirr_phone": "---", "mpesa_phone": "---"
-#    } 
-# }
 
 # FSM ስቴቶች ለተለያዩ ግብአቶች
 class WalletAction(StatesGroup):
@@ -223,7 +216,6 @@ async def process_p2p_payment(message: types.Message, state: FSMContext):
         return
 
     if target_id not in users_db:
-        #  লক্ষ্য ഉപയോക്താവ് ഇല്ലെങ്കിൽ አስቀድሞ መፍጠር ይቻላል
         users_db[target_id] = {
             "referred_by": payer_id,
             "left": None, "right": None,
@@ -231,11 +223,9 @@ async def process_p2p_payment(message: types.Message, state: FSMContext):
             "cbe_account": "---", "telebirr_phone": "---", "mpesa_phone": "---"
         }
 
-    # ክፍያ መፈጸም እና ዋሌት መቀነስ
     users_db[payer_id]["balance"] -= REGISTRATION_FEE
     users_db[target_id]["paid"] = True
 
-    # ኮሚሽን ለሰፈሩ አከፋፈል (ለከፋዩ ወይም ለሪፈረር)
     referrer_id = users_db[target_id].get("referred_by")
     if referrer_id and referrer_id in users_db:
         users_db[referrer_id]["balance"] += COMMISSION_AMOUNT
