@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 import aiohttp
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
@@ -7,17 +8,21 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 
-# --- CONFIGURATIONS ---
-BOT_TOKEN = "8975591959:AAH6C2cewHyPMskuGlWw6_cwxw_MRHtYl8c"
+# --- CONFIGURATIONS (Loaded securely from Environment Variables) ---
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHAPA_SECRET_KEY = "CHASECK-SncZN81Mx80yQcPiXJwRXDF6MdgchtNV"
 CHAPA_PUBLIC_KEY = "CHAPAPUBK-hLBEJPiKDlRpfBCqTczyE10snrrK3Zhj"
 ADMIN_USER_ID = 5351353727  # የእርስዎ ዩዘር አይዲ
 
 # --- ADMIN CONFIGURABLE PRICES & COMMISSIONS ---
-REGISTRATION_FEE = 500.0   # የምዝገባ ዋጋ (በአድሚን ሊቀየር ይችላል)
-COMMISSION_AMOUNT = 100.0  # የሚሰጠው የኮሚሽን መጠን (በአድሚን ሊቀየር ይችላል)
+REGISTRATION_FEE = 500.0   # የምዝገባ ዋጋ
+COMMISSION_AMOUNT = 100.0  # የሚሰጠው የኮሚሽን መጠን
 
 logging.basicConfig(level=logging.INFO)
+
+if not BOT_TOKEN:
+    raise ValueError("⚠️ BOT_TOKEN environment variable not set!")
+
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 
