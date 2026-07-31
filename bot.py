@@ -1,22 +1,21 @@
 import asyncio
 import logging
 import os
-import aiohttp
+from aiohttp import web
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.context import FSMContext
 
-# --- CONFIGURATIONS (Loaded securely from Environment Variables) ---
+# --- CONFIGURATIONS ---
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 CHAPA_SECRET_KEY = "CHASECK-SncZN81Mx80yQcPiXJwRXDF6MdgchtNV"
 CHAPA_PUBLIC_KEY = "CHAPAPUBK-hLBEJPiKDlRpfBCqTczyE10snrrK3Zhj"
-ADMIN_USER_ID = 5351353727  # የእርስዎ ዩዘር አይዲ
+PORT = int(os.getenv("PORT", 10000))
 
-# --- ADMIN CONFIGURABLE PRICES & COMMISSIONS ---
-REGISTRATION_FEE = 500.0   # የምዝገባ ዋጋ
-COMMISSION_AMOUNT = 100.0  # የሚሰጠው የኮሚሽን መጠን
+REGISTRATION_FEE = 500.0   
+COMMISSION_AMOUNT = 100.0  
 
 logging.basicConfig(level=logging.INFO)
 
@@ -26,10 +25,8 @@ if not BOT_TOKEN:
 bot = Bot(token=BOT_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 
-# ዳታቤዝ ምትክ 
 users_db = {}  
 
-# FSM ስቴቶች ለተለያዩ ግብአቶች
 class WalletAction(StatesGroup):
     waiting_for_topup_amount = State()
     waiting_for_p2p_target = State()
@@ -62,7 +59,6 @@ async def cmd_start(message: types.Message):
             "mpesa_phone": "አልተመዘገበም (---)"
         }
         
-        # ባይናሪ ሐረግ ማስተሳሰር (ግራ እና በቀኝ)
         if referrer_id and referrer_id in users_db:
             ref_data = users_db[referrer_id]
             if ref_data["left"] is None:
@@ -188,7 +184,7 @@ async def verify_topup_action(callback: types.CallbackQuery):
                 await callback.message.answer("❌ ክፍያው ገና አልተጠናቀቀም።")
     await callback.answer()
 
-# --- P2P / PAY FOR DOWNLINE (FROM WALLET) ---
+# --- P2P / PAY FOR DOWNLINE ---
 @dp.callback_query(F.data == "p2p_pay")
 async def p2p_prompt(callback: types.CallbackQuery, state: FSMContext):
     user_id = callback.from_user.id
@@ -245,7 +241,7 @@ async def process_p2p_payment(message: types.Message, state: FSMContext):
     except Exception:
         pass
 
-# --- ACCOUNT SETUP (CBE, Telebirr, M-Pesa) ---
+# --- ACCOUNT SETUP ---
 @dp.callback_query(F.data == "setup_accounts")
 async def setup_accounts_menu(callback: types.CallbackQuery):
     keyboard = types.InlineKeyboardMarkup(
@@ -300,9 +296,23 @@ async def back_to_main(callback: types.CallbackQuery):
     await cmd_start(callback.message)
     await callback.answer()
 
+# --- WEB SERVER FOR RENDER PORT REQUIREMENT ---
+async def handle(request):
+    return web.Response(text="Hamsa Lomi Bot is running successfully!")
+
+async def web_server():
+    app = web.Application()
+    app.add_routes([web.get("/", handle)])
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", PORT)
+    await site.start()
+
 # --- MAIN FUNCTION ---
 async def main():
     print("Hamsa Lomi Advanced Matrix Bot is running...")
+    # ዌብ ሰርቨሩን እና የቴሌግራም ቦቱን በአንድ ላይ ማስጀመር
+    await web_server()
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
