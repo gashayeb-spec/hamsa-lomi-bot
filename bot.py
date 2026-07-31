@@ -1301,7 +1301,7 @@ async def verify_payment(callback: types.CallbackQuery):
                 await activate_user_in_matrix(user_id, callback.bot)
 
                 keyboard = InlineKeyboardMarkup(inline_keyboard=[
-                    [InlineKeyboardButton(text="📊 የኔ ዋሌት እና አካውንት", callback_data="my_account")]
+                    [InlineKeyboardButton(text="📊 የኔ ዋሌት እና አካውንት", callback_data="main_menu")]
                 ])
                 try:
                     await callback.message.edit_text("🎉 <b>ክፍያዎ ተረጋግጧል! አካውንትዎ ነቅቷል።</b>", reply_markup=keyboard, parse_mode="HTML")
@@ -1324,7 +1324,7 @@ async def main_menu_callback(callback: types.CallbackQuery, state: FSMContext):
     user = get_user(callback.from_user.id)
     await show_main_menu(callback, user)
 
-# ----------------- WEB SERVER -----------------
+# ----------------- WEB SERVER (FIXED PORT) -----------------
 async def handle_ping(request):
     return web.Response(text="50 Lomi Bot is running successfully!")
 
@@ -1333,16 +1333,25 @@ async def start_web_server():
     app.router.add_get("/", handle_ping)
     runner = web.AppRunner(app)
     await runner.setup()
-    port = int(os.environ.f("PORT", 10000))
+    
+    # 💡 Render የሚሰጠውን ፖርት በትክክል እንዲጠቀም ተስተካክሏል
+    port = int(os.environ.get("PORT", 10000))
     site = web.TCPSite(runner, "0.0.0.0", port)
     await site.start()
+    logging.info(f"Web server started on port {port}")
 
 async def main():
-    bot = Bot(token="8975591959:AAH6C2cewHyPMskuGlWw6_cwxw_MRHtYl8c")
+    bot = Bot(token=TOKEN)
     dp = Dispatcher(storage=MemoryStorage())
     dp.include_router(router)
     await bot.set_my_commands([BotCommand(command="start", description="ቦቱን ለመጀመር")])
+    
+    # ዌብ ሰርቨሩን እና የቦት ፖሊንግ ሂደትን በአንድ ላይ ማስጀመር
     await start_web_server()
+    
+    # የቆዩ ድብልቆችን (Pending Updates) ለማጽዳት
+    await bot.delete_webhook(drop_pending_updates=True)
+    
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
