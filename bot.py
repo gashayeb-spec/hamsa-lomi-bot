@@ -34,7 +34,6 @@ class WalletAction(StatesGroup):
     waiting_for_telebirr = State()
     waiting_for_mpesa = State()
 
-# --- START & BINARY TREE REGISTRATION ---
 @dp.message(Command("start"))
 async def cmd_start(message: types.Message):
     user_id = message.from_user.id
@@ -83,7 +82,6 @@ async def cmd_start(message: types.Message):
     )
     await message.answer(welcome_text, reply_markup=keyboard, parse_mode="Markdown")
 
-# --- PROFILE & WALLET ---
 @dp.callback_query(F.data == "my_profile")
 async def show_profile(callback: types.CallbackQuery):
     user_id = callback.from_user.id
@@ -112,7 +110,6 @@ async def show_profile(callback: types.CallbackQuery):
     await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
     await callback.answer()
 
-# --- WALLET TOP-UP VIA CHAPA ---
 @dp.callback_query(F.data == "topup_chapa")
 async def prompt_topup_amount(callback: types.CallbackQuery, state: FSMContext):
     await callback.message.answer(f"እባክዎ በዋሌትዎ ማስገባት (መሙላት) የሚፈልጉትን የብር መጠን ይጻፉ (ለምሳሌ: `{REGISTRATION_FEE}`):", parse_mode="Markdown")
@@ -184,7 +181,6 @@ async def verify_topup_action(callback: types.CallbackQuery):
                 await callback.message.answer("❌ ክፍያው ገና አልተጠናቀቀም።")
     await callback.answer()
 
-# --- P2P / PAY FOR DOWNLINE ---
 @dp.callback_query(F.data == "p2p_pay")
 async def p2p_prompt(callback: types.CallbackQuery, state: FSMContext):
     user_id = callback.from_user.id
@@ -241,7 +237,6 @@ async def process_p2p_payment(message: types.Message, state: FSMContext):
     except Exception:
         pass
 
-# --- ACCOUNT SETUP ---
 @dp.callback_query(F.data == "setup_accounts")
 async def setup_accounts_menu(callback: types.CallbackQuery):
     keyboard = types.InlineKeyboardMarkup(
@@ -296,23 +291,21 @@ async def back_to_main(callback: types.CallbackQuery):
     await cmd_start(callback.message)
     await callback.answer()
 
-# --- WEB SERVER FOR RENDER PORT REQUIREMENT ---
+# --- LIGHTWEIGHT HTTP SERVER FOR RENDER ---
 async def handle(request):
-    return web.Response(text="Hamsa Lomi Bot is running successfully!")
+    return web.Response(text="Bot is running!")
 
-async def web_server():
+async def start_web_server():
     app = web.Application()
-    app.add_routes([web.get("/", handle)])
+    app.router.add_get("/", handle)
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", PORT)
     await site.start()
 
-# --- MAIN FUNCTION ---
 async def main():
-    print("Hamsa Lomi Advanced Matrix Bot is running...")
-    # ዌብ ሰርቨሩን እና የቴሌግራም ቦቱን በአንድ ላይ ማስጀመር
-    await web_server()
+    print("Hamsa Lomi Bot starting...")
+    await start_web_server()
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
