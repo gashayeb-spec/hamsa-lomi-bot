@@ -947,3 +947,30 @@ async def my_account_callback(callback: types.CallbackQuery):
     except Exception:
         await callback.message.answer(text, reply_markup=keyboard, parse_mode="HTML")
     await callback.answer()
+
+# ----------------- RENDER WEB SERVER & BOT STARTUP -----------------
+async def handle_ping(request):
+    return web.Response(text="Bot is running!")
+
+async def start_web_server():
+    app = web.Application()
+    app.router.add_get("/", handle_ping)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    port = int(os.getenv("PORT", 10000))
+    site = web.TCPSite(runner, "0.0.0.0", port)
+    await site.start()
+
+async def main():
+    bot = Bot(token=TOKEN)
+    dp = Dispatcher(storage=MemoryStorage())
+    dp.include_router(router)
+    
+    # Start Render web server in background
+    await start_web_server()
+    
+    await bot.delete_webhook(drop_pending_updates=True)
+    await dp.start_polling(bot)
+
+if __name__ == "__main__":
+    asyncio.run(main())
