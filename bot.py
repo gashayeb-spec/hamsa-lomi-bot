@@ -10,6 +10,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
 import aiohttp
 from aiohttp import web
+from urllib.parse import quote_plus as quote_plus_text
 
 # ----------------- CONFIGURATIONS -----------------
 TOKEN = os.getenv("BOT_TOKEN")
@@ -226,7 +227,7 @@ async def activate_user_in_matrix(user_id, bot: Bot):
             f"👤 ስም: <b>{user_fullname}</b>\n"
             f"🚀 50 ሎሚ ቦት - በጋራ እናድጋለን፣ በጋራ እንበለጽጋለን!\n\n"
             f"እርስዎም አሁኑኑ በመግባት የራስዎን ገቢ መገንባት ይጀምሩ፦\n"
-            f"👉 봇 ሊንክ: https://t.me/{bot_username}\n"
+            f"👉 ቦት ሊንክ: https://t.me/{bot_username}\n"
             f"📢 ቻናል: https://t.me/{CHANNEL_USERNAME.replace('@', '')}"
         )
         channel_keyboard = InlineKeyboardMarkup(inline_keyboard=[
@@ -922,9 +923,6 @@ async def my_account_callback(callback: types.CallbackQuery):
             InlineKeyboardButton(text="Next ➡️", callback_data="digital_services")
         ])
     else:
-        share_text = f"እንኳን ወደ 50 ሎሚ በሰላም መጡ! በጋራ እንበለጽጋለን! አሁኑኑ ይቀላቀሉን፦ {ref_link}"
-        share_url = f"https://t.me/share/url?url={ref_link}&text={quote_plus_text(share_text)}"
-        
         text = (
             f"💳 <b>የእርስዎ ዋሌት እና አካውንት መረጃ</b> (50 ሎሚ)\n\n"
             f"👤 ስም: {callback.from_user.full_name}\n"
@@ -935,4 +933,17 @@ async def my_account_callback(callback: types.CallbackQuery):
             f"💰 ዋሌት ቀሪ ሂሳብ: <b>{balance} Dollars</b>\n\n"
             f"👥 የጠሯቸው: ጠቅላላ <b>{total_refs}</b> | ንቁ: <b>{active_refs}</b>\n\n"
             f"🔗 <b>የእርስዎ የሪፈራል ሊንክ (ኮፒ ለማድረግ ይንኩት):</b>\n"
-            f"```text\n{ref_link}\n
+            f"<code>{ref_link}</code>"
+        )
+        keyboard_buttons.append([
+            InlineKeyboardButton(text="⬅️ Back", callback_data="tutorial_video"),
+            InlineKeyboardButton(text="🏠 ዋና ገጽ", callback_data="main_menu"),
+            InlineKeyboardButton(text="Next ➡️", callback_data="digital_services")
+        ])
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
+    try:
+        await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
+    except Exception:
+        await callback.message.answer(text, reply_markup=keyboard, parse_mode="HTML")
+    await callback.answer()
