@@ -13,10 +13,10 @@ from aiohttp import web
 from urllib.parse import quote_plus as quote_plus_text
 
 # ----------------- CONFIGURATIONS -----------------
-TOKEN = os.getenv("BOT_TOKEN")
+TOKEN = os.getenv("BOT_TOKEN", "").strip()
 ADMIN_ID = int(os.getenv("ADMIN_ID", "5351353727"))
-CHAPA_SECRET_KEY = os.getenv("CHAPA_SECRET_KEY")
-CHAPA_PUBLIC_KEY = os.getenv("CHAPA_PUBLIC_KEY")
+CHAPA_SECRET_KEY = os.getenv("CHAPA_SECRET_KEY", "").strip()
+CHAPA_PUBLIC_KEY = os.getenv("CHAPA_PUBLIC_KEY", "").strip()
 
 CHANNEL_USERNAME = "@Hamisalomi_bot_official" 
 CHANNEL_ID = -1002345678901 
