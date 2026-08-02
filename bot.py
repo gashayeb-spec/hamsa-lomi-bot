@@ -427,14 +427,15 @@ async def show_main_menu(message_or_callback, user):
     bot_info = await message_or_callback.bot.get_me() if hasattr(message_or_callback, "bot") else await (message_or_callback.message.bot.get_me() if isinstance(message_or_callback, types.CallbackQuery) else None)
     bot_username = bot_info.username if bot_info else "Hamisalomi_bot"
 
+    # የተሻሻለ የፎልደር/ንዑስ ምናሌ አደረጃጀት (Folders Hub)
     keyboard_buttons = [
-        [InlineKeyboardButton(text="🪙 ሎሚ ኮይን ግይድ/ሽያጭ (Lomi Market)", callback_data="lomi_market")],
-        [InlineKeyboardButton(text="💳 ፓኬጅ ይግዙ (Chapa & Manual)", callback_data="payment_options")],
-        [InlineKeyboardButton(text="📥 ገንዘብ ወደ ዋሌት ጫን (Deposit)", callback_data="wallet_deposit")],
-        [InlineKeyboardButton(text="📊 የኔ ዋሌት እና አካውንት (Wallet)", callback_data="my_account")],
-        [InlineKeyboardButton(text="🛒 የዲጂታል አገልግሎቶች (Mobile & Ads)", callback_data="digital_services")],
-        [InlineKeyboardButton(text="📞 Customer Support & Banks", callback_data="customer_support")],
-        [InlineKeyboardButton(text="ℹ️ ስለ 50 ሎሚ እና አሰራር (About)", callback_data="bot_about")],
+        [InlineKeyboardButton(text="🪙 ሎሚ ኮይን ገበያ (Market Folder)", callback_data="lomi_market")],
+        [InlineKeyboardButton(text="💳 ፓኬጅ እና ክፍያ ፎልደር (Payments)", callback_data="payment_options")],
+        [InlineKeyboardButton(text="📥 ዴፖዚት ፎልደር (Deposit)", callback_data="wallet_deposit")],
+        [InlineKeyboardButton(text="📊 የኔ ዋሌት እና አካውንት (My Account)", callback_data="my_account")],
+        [InlineKeyboardButton(text="🛒 የዲጂታል አገልግሎቶች ፎልደር (Services)", callback_data="digital_services")],
+        [InlineKeyboardButton(text="📞 ደንበኞች ድጋፍ ፎልደር (Support)", callback_data="customer_support")],
+        [InlineKeyboardButton(text="ℹ️ ስለ ቦቱ እና አሰራር (About)", callback_data="bot_about")],
         [InlineKeyboardButton(text="🎬 አጠቃቀም ቪዲዮ መመሪያ (Tutorial)", callback_data="tutorial_video")],
         [
             InlineKeyboardButton(text="🤖 ቦት ሊንክ", url=f"https://t.me/{bot_username}"),
@@ -443,7 +444,7 @@ async def show_main_menu(message_or_callback, user):
     ]
     
     if is_admin:
-        keyboard_buttons.append([InlineKeyboardButton(text="⚙️ አድሚን ፓነል (Admin Settings)", callback_data="admin_panel")])
+        keyboard_buttons.append([InlineKeyboardButton(text="⚙️ አድሚን ፓነል ፎልደር (Admin)", callback_data="admin_panel")])
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
 
@@ -457,7 +458,7 @@ async def show_main_menu(message_or_callback, user):
         f"የአሁኑ የፓኬጅ ዋጋ: <b>{current_price} ETB</b>\n"
         f"የስራ ኮሚሽን: <b>{current_commission}%</b>\n"
         f"🪙 <b>የ 1 ሎሚ ኮይን ገበያ ዋጋ: {coin_price} ETB</b>\n\n"
-        f"ከታች ካሉት አማራጮች ውስጥ የሚፈልጉትን መምረጥ ይችላሉ።"
+        f"📂 ከታሉት ፎልደሮች ውስጥ የሚፈልጉትን በመምረጥ ስራዎን በራሱ ገጽ ጨርሰው መውጣት ይችላሉ።"
     )
     
     if isinstance(message_or_callback, types.CallbackQuery):
@@ -478,11 +479,11 @@ async def payment_options_menu(callback: types.CallbackQuery):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="💳 በቻፓ (Chapa) በኦንላይን ይክፈሉ", callback_data="pay_chapa")],
         [InlineKeyboardButton(text="🏦 በባንክ / በሞባይል ቦርሳ (Manual Payment)", callback_data="manual_payment_start")],
-        [InlineKeyboardButton(text="🔙 ወደ ዋናው ምናሌ", callback_data="main_menu")]
+        [InlineKeyboardButton(text="⬅️ ተመለስ (Back)", callback_data="main_menu")]
     ])
     text = (
-        f"💳 <b>የክፍያ አማራጮች (Payment Options)</b>\n\n"
-        f"ፓኬጅዎን ለማግበር ከታሉት ሁለት መንገዶች አንዱን መምረጥ ይችላሉ፦\n"
+        f"💳 <b>የክፍያ ፎልደር (Payment Options Folder)</b>\n\n"
+        f"ፓኬጅዎን ለማግበር ከታሉት ሁለት መንገዶች አንዱን በመምረጥ እዛው ጨርሰው መውጣት ይችላሉ፦\n"
         f"1. <b>በቻፓ:</b> በካርድ ወይም በባንክ በኦንላይን ወዲያውኑ ይክፈሉና ያስተካክሉ።\n"
         f"2. <b>በማኑዋል:</b> ከታች ባሉት የባንክ ቁጥሮች ገንዘብ አስተላልፈው ደረሰኝ (Screenshot) በመላክ በአድሚን ያስረግጣሉ።"
     )
@@ -504,7 +505,7 @@ async def manual_payment_start(callback: types.CallbackQuery, state: FSMContext)
         f"እባክዎ ከላይ በተዘረዘሩት የባንክ አካውንቶች ገንዘቡን ካስተላለፉ በኋላ **የክፍያውን ደረሰኝ ፎቶ (Screenshot)** በዚህ ቦት ላይ ይላኩላቸው (Upload ያድርጉ)፦"
     )
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="⬅️ ተመለስ", callback_data="payment_options")]
+        [InlineKeyboardButton(text="⬅️ ተመለስ (Back)", callback_data="payment_options")]
     ])
     try:
         await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
@@ -542,7 +543,7 @@ async def process_manual_receipt(message: types.Message, state: FSMContext):
     except Exception as e:
         logging.error(f"Failed to send manual payment to admin: {e}")
 
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🏠 ዋና ገጽ", callback_data="main_menu")]])
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🏠 ዋና ገጽ (Main Menu)", callback_data="main_menu")]])
     await message.answer(
         "✅ <b>ደረሰኝዎ በትክክል ተልኳል!</b>\n\n"
         "አድሚኑ ደረሰኙን አረጋግጦ አካውንትዎን በቅርቡ ያቀናብርልዎታል። እናመሰግናለን!",
@@ -608,18 +609,18 @@ async def lomi_market_menu(callback: types.CallbackQuery):
     coin_balance = user[8] if user else 0.0
 
     text = (
-        f"🪙 <b>የሎሚ ኮይን ገበያ እና ንግድ ማዕከል (Lomi Coin Market)</b>\n\n"
+        f"🪙 <b>የሎሚ ኮይን ገበያ ፎልደር (Lomi Coin Market Folder)</b>\n\n"
         f"• የ 1 ሎሚ ኮይን ወቅታዊ ዋጋ: <b>{coin_price} ETB</b>\n"
         f"• የእርስዎ የብር ቀሪ ሂሳብ: <b>{balance} ETB</b>\n"
         f"• የእርስዎ የሎሚ ኮይን ብዛት: <b>{coin_balance} ሎሚ ኮይን</b>\n\n"
-        f"ሎሚ ኮይን በመግዛት ዋጋው ሲጨምር ማትረፍ ወይም ኮይኖቹን ሸጠው ወደ ብር መቀየር ይችላሉ። ምን ማድረግ ይፈልጋሉ?"
+        f"ሎሚ ኮይን በመግዛት ዋጋው ሲጨምር ማትረፍ ወይም ኮይኖቹን ሸጠው ወደ ብር መቀየር ይችላሉ። ከታች ባሉት አማራጮች ገብተው ጨርሰው መውጣት ይችላሉ፦"
     )
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [
             InlineKeyboardButton(text="📥 ሎሚ ኮይን ይግዙ (Buy)", callback_data="buy_coin_start"),
             InlineKeyboardButton(text="📤 ሎሚ ኮይን ይሽጡ (Sell)", callback_data="sell_coin_start")
         ],
-        [InlineKeyboardButton(text="🔙 ወደ ዋናው ምናሌ", callback_data="main_menu")]
+        [InlineKeyboardButton(text="⬅️ ተመለስ (Back)", callback_data="main_menu")]
     ])
     try:
         await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
@@ -640,7 +641,7 @@ async def buy_coin_start(callback: types.CallbackQuery, state: FSMContext):
         f"መግዛት የሚፈልጉትን የ **ሎሚ ኮይን ብዛት** (ለምሳሌ: 5 ወይም 10) ጻፉልኝ፦"
     )
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="⬅️ Back", callback_data="lomi_market")]
+        [InlineKeyboardButton(text="⬅️ ተመለስ (Back)", callback_data="lomi_market")]
     ])
     try:
         await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
@@ -681,7 +682,7 @@ async def process_buy_coin(message: types.Message, state: FSMContext):
     conn.close()
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🪙 ወደ ሎሚ ገበያ ተመለስ", callback_data="lomi_market")]
+        [InlineKeyboardButton(text="🪙 ወደ ሎሚ ገበያ ፎልደር ተመለስ", callback_data="lomi_market")]
     ])
     await message.answer(
         f"🎉 <b>እንኳን ደስ አለዎት! ግዢው ተሳክቷል።</b>\n\n"
@@ -704,7 +705,7 @@ async def sell_coin_start(callback: types.CallbackQuery, state: FSMContext):
         f"መሸጥ (ወደ ብር መቀየር) የሚፈልጉትን የ **ኮይን ብዛት** ጻፉልኝ፦"
     )
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="⬅️ Back", callback_data="lomi_market")]
+        [InlineKeyboardButton(text="⬅️ ተመለስ (Back)", callback_data="lomi_market")]
     ])
     try:
         await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
@@ -744,7 +745,7 @@ async def process_sell_coin(message: types.Message, state: FSMContext):
     conn.close()
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🪙 ወደ ሎሚ ገበያ ተመለስ", callback_data="lomi_market")]
+        [InlineKeyboardButton(text="🪙 ወደ ሎሚ ገበያ ፎልደር ተመለስ", callback_data="lomi_market")]
     ])
     await message.answer(
         f"🎉 <b>ሽያጩ ተሳክቷል! ኮይኖቹ ወደ ብር ተቀይረዋል።</b>\n\n"
@@ -805,7 +806,7 @@ async def pay_chapa_package(callback: types.CallbackQuery):
                 keyboard = InlineKeyboardMarkup(inline_keyboard=[
                     [InlineKeyboardButton(text="💳 በቻፓ (Chapa) ክፍያ ይፈጽሙ", url=checkout_url)],
                     [InlineKeyboardButton(text="🔄 ክፍያ ከፈጸሙ በኋላ ያረጋግጡ", callback_data=f"verify_pkg_{tx_ref}")],
-                    [InlineKeyboardButton(text="🔙 ወደ ዋናው ምናሌ", callback_data="main_menu")]
+                    [InlineKeyboardButton(text="⬅️ ተመለስ (Back)", callback_data="payment_options")]
                 ])
                 try:
                     await callback.message.edit_text(
@@ -875,13 +876,13 @@ async def verify_package_payment(callback: types.CallbackQuery):
 async def customer_support_handler(callback: types.CallbackQuery):
     support_phone = get_setting('support_phone', str) or "0916039015"
     text = (
-        f"📞 <b>የደንበኞች ድጋፍ እና የባንክ መረጃዎች (Customer Support)</b>\n\n"
+        f"📞 <b>የደንበኞች ድጋፍ እና የባንክ መረጃዎች ፎልደር (Customer Support Folder)</b>\n\n"
         f"• የድጋፍ ስልክ ቁጥር: <code>{support_phone}</code>\n"
         f"• ቻናል: https://t.me/{CHANNEL_USERNAME.replace('@', '')}\n\n"
         f"{BANK_DETAILS_TEXT}"
     )
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🔙 ወደ ዋናው ምናሌ", callback_data="main_menu")]
+        [InlineKeyboardButton(text="⬅️ ተመለስ (Back)", callback_data="main_menu")]
     ])
     try:
         await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
@@ -894,16 +895,17 @@ async def customer_support_handler(callback: types.CallbackQuery):
 async def digital_services_menu(callback: types.CallbackQuery):
     support_phone = get_setting('support_phone', str) or "0916039015"
     text = (
-        f"🛒 <b>የዲጂታል አገልግሎቶች ማዕከል</b> (50 ሎሚ)\n\n"
+        f"🛒 <b>የዲጂታል አገልግሎቶች ፎልደር (Digital Services Folder)</b>\n\n"
         f"1️⃣ <b>Cell Phone Airtime</b>\n"
         f"2️⃣ <b>የቴሌግራም ፕሪሚየም (Telegram Premium)</b>\n"
         f"3️⃣ <b>የቲክቶክ እና ቴሌግራም ማስታወቂያዎች (Ads)</b>\n\n"
-        f"አገልግሎቱን ለማግኘት የገንዘብ ማስተላለፊያ ቁጥር: <b>{support_phone}</b>"
+        f"አገልግሎቱን ለማግኘት የገንዘብ ማስተላለፊያ ቁጥር: <b>{support_phone}</b>\n"
+        f"ከታሉት አማራጮች ውስጥ በመምረጥ ስራዎን እዛው ጨርሰው መውጣት ይችላሉ።"
     )
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="📞 Airtime", callback_data="srv_airtime"), InlineKeyboardButton(text="⭐ Telegram Premium", callback_data="srv_tg_prem")],
         [InlineKeyboardButton(text="📢 Ads", callback_data="srv_ads")],
-        [InlineKeyboardButton(text="🏠 ዋና ገጽ", callback_data="main_menu")]
+        [InlineKeyboardButton(text="⬅️ ተመለስ (Back)", callback_data="main_menu")]
     ])
     try:
         await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
@@ -922,7 +924,7 @@ async def service_order_prompt(callback: types.CallbackQuery, state: FSMContext)
     await state.update_data(service_type=s_title)
     await state.set_state(ServiceOrderStates.waiting_for_detail)
     
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Back", callback_data="digital_services")]])
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ ተመለስ (Back)", callback_data="digital_services")]])
     await callback.message.edit_text(
         f"🛒 <b>{s_title}</b>\n\nእባክዎ ለዚህ አገልግሎት የሚፈልጉትን ዝርዝር (ስልክ ቁጥር ወይም ሊንክ) ጻፉልኝ፦",
         reply_markup=keyboard, parse_mode="HTML"
@@ -959,7 +961,7 @@ async def process_service_order(message: types.Message, state: FSMContext):
     except Exception:
         pass
 
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🏠 ዋና ገጽ", callback_data="main_menu")]])
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🏠 ዋና ገጽ (Main Menu)", callback_data="main_menu")]])
     await message.answer("✅ ትዕዛዝዎ ተቀባይነት አግኝቷል! አድሚኑ አረጋግጦ ይፈጽምልዎታል።", reply_markup=keyboard)
 
 @router.callback_query(F.data.startswith("app_srv_"))
@@ -985,8 +987,8 @@ async def approve_service_order(callback: types.CallbackQuery):
 @router.callback_query(F.data == "wallet_deposit")
 async def wallet_deposit_start(callback: types.CallbackQuery, state: FSMContext):
     await state.set_state(DepositStates.waiting_for_amount)
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Back", callback_data="main_menu")]])
-    await callback.message.edit_text("📥 <b>ገንዘብ ወደ ዋሌት ጫን</b>\n\nማስገባት የሚፈልጉትን የብር መጠን (ETB) ጻፉልኝ፦", reply_markup=keyboard, parse_mode="HTML")
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ ተመለስ (Back)", callback_data="main_menu")]])
+    await callback.message.edit_text("📥 <b>ገንዘብ ወደ ዋሌት ጫን (Deposit Folder)</b>\n\nማስገባት የሚፈልጉትን የብር መጠን (ETB) ጻፉልኝ፦", reply_markup=keyboard, parse_mode="HTML")
     await callback.answer()
 
 @router.message(DepositStates.waiting_for_amount)
@@ -1023,7 +1025,8 @@ async def process_wallet_deposit(message: types.Message, state: FSMContext):
 
                 keyboard = InlineKeyboardMarkup(inline_keyboard=[
                     [InlineKeyboardButton(text="🔗 በቻፓ ለመክፈል እዚህ ይጫኑ", url=checkout_url)],
-                    [InlineKeyboardButton(text="🔄 ክፍያ ከፈጸሙ በኋላ ያረጋግጡ", callback_data=f"verify_dep_{tx_ref}")]
+                    [InlineKeyboardButton(text="🔄 ክፍያ ከፈጸሙ በኋላ ያረጋግጡ", callback_data=f"verify_dep_{tx_ref}")],
+                    [InlineKeyboardButton(text="⬅️ ተመለስ (Back)", callback_data="wallet_deposit")]
                 ])
                 await message.answer(f"💳 <b>የክፍያ ማገናኛ ተዘጋጅቷል! (መጠን: {amount} ETB)</b>", reply_markup=keyboard, parse_mode="HTML")
             else:
@@ -1067,8 +1070,8 @@ async def p2p_transfer_start(callback: types.CallbackQuery, state: FSMContext):
         return
 
     await state.set_state(P2PTransferStates.waiting_for_recipient)
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Back", callback_data="my_account")]])
-    await callback.message.edit_text("💸 <b>ገንዘብ ለሌላ ተጠቃሚ ማስተላለፍ (P2P)</b>\n\nየተቀባዩን **ዋሌት ID** (ምሳሌ: `W12345`) ጻፉልኝ፦", reply_markup=keyboard, parse_mode="HTML")
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ ተመለስ (Back)", callback_data="my_account")]])
+    await callback.message.edit_text("💸 <b>ገንዘብ ለሌላ ተጠቃሚ ማስተላለፍ (P2P Folder)</b>\n\nየተቀባዩን **ዋሌት ID** (ምሳሌ: `W12345`) ጻፉልኝ፦", reply_markup=keyboard, parse_mode="HTML")
     await callback.answer()
 
 @router.message(P2PTransferStates.waiting_for_recipient)
@@ -1121,8 +1124,8 @@ async def request_withdraw_start(callback: types.CallbackQuery, state: FSMContex
         await callback.answer("❌ ማውጣት የሚችሉት ቀሪ ሂሳብ የለም!", show_alert=True)
         return
     await state.set_state(WithdrawStates.waiting_for_amount)
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Back", callback_data="my_account")]])
-    await callback.message.edit_text(f"💸 <b>ገንዘብ ማውጣት</b>\nያለዎት: {user[7]} ETB\nማውጣት የሚፈልጉትን መጠን ጻፉልኝ፦", reply_markup=keyboard, parse_mode="HTML")
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ ተመለስ (Back)", callback_data="my_account")]])
+    await callback.message.edit_text(f"💸 <b>ገንዘብ ማውጣት (Withdraw Folder)</b>\nያለዎት: {user[7]} ETB\nማውጣት የሚፈልጉትን መጠን ጻፉልኝ፦", reply_markup=keyboard, parse_mode="HTML")
     await callback.answer()
 
 @router.message(WithdrawStates.waiting_for_amount)
@@ -1187,14 +1190,14 @@ async def approve_withdrawal(callback: types.CallbackQuery):
 # ----------------- ABOUT & TUTORIAL -----------------
 @router.callback_query(F.data == "bot_about")
 async def bot_about_callback(callback: types.CallbackQuery):
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🏠 ዋና ገጽ", callback_data="main_menu")]])
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ ተመለስ (Back)", callback_data="main_menu")]])
     await callback.message.edit_text("ℹ️ <b>ስለ 50 ሎሚ</b>\nበጋራ እንበለጽጋለን! ባይነሪ ማትሪክስ እና ሎሚ ኮይን ግብይት መድረክ።", reply_markup=keyboard, parse_mode="HTML")
     await callback.answer()
 
 @router.callback_query(F.data == "tutorial_video")
 async def tutorial_video_callback(callback: types.CallbackQuery):
     t_link = get_setting('tutorial_link', str) or TUTORIAL_VIDEO_URL
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🏠 ዋና ገጽ", callback_data="main_menu")]])
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ ተመለስ (Back)", callback_data="main_menu")]])
     await callback.message.edit_text(f"🎬 <b>መመሪያ</b>\n<a href='{t_link}'>ቪዲዮውን ለማየት እዚህ ይጫኑ</a>", reply_markup=keyboard, parse_mode="HTML", disable_web_page_preview=False)
     await callback.answer()
 
@@ -1230,12 +1233,12 @@ async def my_account_callback(callback: types.CallbackQuery):
     if not is_active:
         keyboard_buttons.insert(0, [InlineKeyboardButton(text="💳 ፓኬጅ ይግዙ (Activate)", callback_data="payment_options")])
 
-    keyboard_buttons.append([InlineKeyboardButton(text="🏠 ዋና ገጽ", callback_data="main_menu")])
+    keyboard_buttons.append([InlineKeyboardButton(text="⬅️ ተመለስ (Back)", callback_data="main_menu")])
     keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
 
     status_text = "🟢 ንቁ (Active)" if is_active else "🔴 ስራ አልጀመረም (Pending)"
     text = (
-        f"💳 <b>የእርስዎ ዋሌት እና አካውንት</b> (50 ሎሚ)\n\n"
+        f"💳 <b>የእርስዎ ዋሌት እና አካውንት ፎልደር (My Account Folder)</b>\n\n"
         f"👤 ስም: {callback.from_user.full_name}\n"
         f"🆔 ዋሌት ID: <code>{wallet_id}</code>\n"
         f"📞 ስልክ: {phone}\n"
@@ -1263,7 +1266,7 @@ async def admin_panel_callback(callback: types.CallbackQuery):
     sup = get_setting('support_phone', str)
 
     text = (
-        f"⚙️ <b>የአድሚን መቆጣጠሪያ ፓነል</b>\n\n"
+        f"⚙️ <b>የአድሚን መቆጣጠሪያ ፓነል ፎልደር (Admin Panel Folder)</b>\n\n"
         f"• የፓኬጅ ዋጋ: <b>{price} ETB</b>\n"
         f"• የኮሚሽን መቶኛ: <b>{comm}%</b>\n"
         f"• 🪙 <b>የ 1 ሎሚ ኮይን ዋጋ: {coin_price} ETB</b>\n"
@@ -1272,7 +1275,7 @@ async def admin_panel_callback(callback: types.CallbackQuery):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="💰 ፓኬጅ ዋጋ ቀይር", callback_data="adm_set_price"), InlineKeyboardButton(text="🪙 ኮይን ዋጋ ቀይር", callback_data="adm_set_coin_price")],
         [InlineKeyboardButton(text="📊 ኮሚሽን ቀይር", callback_data="adm_set_comm"), InlineKeyboardButton(text="📞 ድጋፍ ስልክ ቀይር", callback_data="adm_set_phone")],
-        [InlineKeyboardButton(text="🏠 ወደ ዋናው ገጽ", callback_data="main_menu")]
+        [InlineKeyboardButton(text="⬅️ ተመለስ (Back)", callback_data="main_menu")]
     ])
     try:
         await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
