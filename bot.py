@@ -544,7 +544,6 @@ async def process_manual_receipt(message: types.Message, state: FSMContext):
             f"👤 ተጠቃሚ: {message.from_user.full_name} (ID: <code>{user_id}</code>)\n"
             f"💰 መጠን: <b>{package_price} ETB</b>"
         )
-        # አድሚን አፕሩቭ፣ ካንስል እና ሎሚ ዩዘርን ብሎክ የሚያደርግባቸው ቁልፎች
         admin_keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [
                 InlineKeyboardButton(text="✅ አጽድቅ", callback_data=f"app_mp_{mp_id}"),
