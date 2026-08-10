@@ -39,7 +39,7 @@ BANK_DETAILS_TEXT = (
     f"• <b>አቢሲኒያ ባንክ (Bank of Abyssinia):</b> <code>54071628</code>\n"
     f"• <b>ንብ ባንክ (Nib Bank):</b> <code>7000007057569</code>\n"
     f"• <b>አዋሽ ባንክ (Awash Bank):</b> <code>01325229622800</code>\n"
-    f"• <b>ዳሽን ባንክ (Dashen Bank):</b> <code>5151355033201</code>\n\n"
+    f"• <b>ዳሽን ባንክ (Dashen Bank):</b> <code>5121355033201</code>\n\n"
     f"⚠️ <i>ገንዘብ ካስተላለፉ በኋላ የክፍያ መግለጫውን ወይም የደረሰኝ ፎቶ (Screenshot) በዚህ ቦት ይላኩ!</i>"
 )
 
