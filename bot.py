@@ -12,7 +12,7 @@ import aiohttp
 from aiohttp import web
 
 # ----------------- CONFIGURATIONS -----------------
-TOKEN = os.getenv("BOT_TOKEN", "").strip()
+TOKEN = os.getenv("BOT_TOKEN", "8975591959:AAH6C2cewHyPMskuGlWw6_cwxw_MRHtYl8c")
 ADMIN_ID = int(os.getenv("ADMIN_ID", "5351353727"))
 CHAPA_SECRET_KEY = os.getenv("CHAPA_SECRET_KEY", "").strip()
 CHAPA_PUBLIC_KEY = os.getenv("CHAPA_PUBLIC_KEY", "").strip()
