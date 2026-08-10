@@ -79,103 +79,100 @@ class CoinTradeStates(StatesGroup):
 
 # ----------------- DATABASE SETUP -----------------
 def init_db():
-    conn = sqlite3.connect("binary_mlm.db")
-    cursor = conn.cursor()
-    
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS settings (
-            key TEXT PRIMARY KEY,
-            value TEXT
-        )
-    """)
-    default_settings = [
-        ('package_price', '500.0'),
-        ('commission_percent', '10.0'),
-        ('lomi_coin_price', '10.0'),
-        ('tutorial_link', TUTORIAL_VIDEO_URL),
-        ('transfer_fee_percent', '2.0'),
-        ('withdraw_fee_percent', '5.0'),
-        ('support_phone', '0916039015')
-    ]
-    for k, v in default_settings:
-        cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", (k, v))
-    
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            user_id INTEGER PRIMARY KEY,
-            username TEXT,
-            fullname TEXT,
-            referrer_id INTEGER,
-            parent_id INTEGER,
-            position TEXT,
-            is_active INTEGER DEFAULT 0,
-            balance REAL DEFAULT 0.0,
-            coin_balance REAL DEFAULT 0.0,
-            phone_number TEXT,
-            payment_account TEXT,
-            wallet_id TEXT UNIQUE,
-            is_blocked INTEGER DEFAULT 0,
-            lang TEXT DEFAULT 'am'
-        )
-    """)
-    
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS transactions (
-            tx_ref TEXT PRIMARY KEY,
-            user_id INTEGER,
-            amount REAL,
-            status TEXT DEFAULT 'PENDING',
-            type TEXT DEFAULT 'PACKAGE'
-        )
-    """)
+    with sqlite3.connect("binary_mlm.db") as conn:
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            )
+        """)
+        default_settings = [
+            ('package_price', '500.0'),
+            ('commission_percent', '10.0'),
+            ('lomi_coin_price', '10.0'),
+            ('tutorial_link', TUTORIAL_VIDEO_URL),
+            ('transfer_fee_percent', '2.0'),
+            ('withdraw_fee_percent', '5.0'),
+            ('support_phone', '0916039015')
+        ]
+        for k, v in default_settings:
+            cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", (k, v))
+        
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                user_id INTEGER PRIMARY KEY,
+                username TEXT,
+                fullname TEXT,
+                referrer_id INTEGER,
+                parent_id INTEGER,
+                position TEXT,
+                is_active INTEGER DEFAULT 0,
+                balance REAL DEFAULT 0.0,
+                coin_balance REAL DEFAULT 0.0,
+                phone_number TEXT,
+                payment_account TEXT,
+                wallet_id TEXT UNIQUE,
+                is_blocked INTEGER DEFAULT 0,
+                lang TEXT DEFAULT 'am'
+            )
+        """)
+        
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS transactions (
+                tx_ref TEXT PRIMARY KEY,
+                user_id INTEGER,
+                amount REAL,
+                status TEXT DEFAULT 'PENDING',
+                type TEXT DEFAULT 'PACKAGE'
+            )
+        """)
 
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS manual_payments (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER,
-            amount REAL,
-            photo_id TEXT,
-            payment_type TEXT DEFAULT 'PACKAGE',
-            status TEXT DEFAULT 'PENDING',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS manual_payments (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                amount REAL,
+                photo_id TEXT,
+                payment_type TEXT DEFAULT 'PACKAGE',
+                status TEXT DEFAULT 'PENDING',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
 
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS withdrawals (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER,
-            amount REAL,
-            fee REAL,
-            net_amount REAL,
-            account_info TEXT,
-            status TEXT DEFAULT 'PENDING',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS withdrawals (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                amount REAL,
+                fee REAL,
+                net_amount REAL,
+                account_info TEXT,
+                status TEXT DEFAULT 'PENDING',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
 
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS service_orders (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER,
-            service_type TEXT,
-            detail TEXT,
-            status TEXT DEFAULT 'PENDING',
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    """)
-    
-    conn.commit()
-    conn.close()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS service_orders (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER,
+                service_type TEXT,
+                detail TEXT,
+                status TEXT DEFAULT 'PENDING',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.commit()
 
 init_db()
 
 def get_setting(key, default_type=float):
-    conn = sqlite3.connect("binary_mlm.db")
-    cursor = conn.cursor()
-    cursor.execute("SELECT value FROM settings WHERE key = ?", (key,))
-    row = cursor.fetchone()
-    conn.close()
+    with sqlite3.connect("binary_mlm.db") as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT value FROM settings WHERE key = ?", (key,))
+        row = cursor.fetchone()
     if row:
         if default_type == int:
             return int(float(row[0]))
@@ -185,38 +182,34 @@ def get_setting(key, default_type=float):
     return "" if default_type == str else default_type(0)
 
 def set_setting(key, value):
-    conn = sqlite3.connect("binary_mlm.db")
-    cursor = conn.cursor()
-    cursor.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, str(value)))
-    conn.commit()
-    conn.close()
+    with sqlite3.connect("binary_mlm.db") as conn:
+        cursor = conn.cursor()
+        cursor.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, str(value)))
+        conn.commit()
 
 def get_user(user_id):
-    conn = sqlite3.connect("binary_mlm.db")
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
-    user = cursor.fetchone()
-    conn.close()
+    with sqlite3.connect("binary_mlm.db") as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
+        user = cursor.fetchone()
     return user
 
 def get_user_by_wallet(wallet_id):
-    conn = sqlite3.connect("binary_mlm.db")
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM users WHERE wallet_id = ?", (wallet_id.strip(),))
-    user = cursor.fetchone()
-    conn.close()
+    with sqlite3.connect("binary_mlm.db") as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM users WHERE wallet_id = ?", (wallet_id.strip(),))
+        user = cursor.fetchone()
     return user
 
 def register_pending_user(user_id, username, fullname, referrer_id):
     wallet_id = f"W{user_id}"
-    conn = sqlite3.connect("binary_mlm.db")
-    cursor = conn.cursor()
-    cursor.execute("""
-        INSERT OR IGNORE INTO users (user_id, username, fullname, referrer_id, is_active, wallet_id, is_blocked, lang) 
-        VALUES (?, ?, ?, ?, 0, ?, 0, 'am')
-    """, (user_id, username, fullname, referrer_id, wallet_id))
-    conn.commit()
-    conn.close()
+    with sqlite3.connect("binary_mlm.db") as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT OR IGNORE INTO users (user_id, username, fullname, referrer_id, is_active, wallet_id, is_blocked, lang) 
+            VALUES (?, ?, ?, ?, 0, ?, 0, 'am')
+        """, (user_id, username, fullname, referrer_id, wallet_id))
+        conn.commit()
 
 # ----------------- TRANSLATIONS DICTIONARY -----------------
 TEXTS = {
@@ -262,42 +255,39 @@ def get_user_lang(user_id):
 
 # ----------------- MATRIX & REFERRAL LOGIC -----------------
 async def activate_user_in_matrix(user_id, bot: Bot):
-    conn = sqlite3.connect("binary_mlm.db")
-    cursor = conn.cursor()
-    
-    cursor.execute("SELECT is_active, referrer_id, fullname FROM users WHERE user_id = ?", (user_id,))
-    res = cursor.fetchone()
-    if not res or res[0] == 1:
-        conn.close()
-        return False
-    
-    raw_referrer_id = res[1]
-    user_fullname = res[2]
-    
-    target_commission_user = ADMIN_ID
-    if raw_referrer_id and raw_referrer_id != ADMIN_ID:
-        cursor.execute("SELECT COUNT(*) FROM users WHERE referrer_id = ? AND is_active = 1", (raw_referrer_id,))
-        direct_count = cursor.fetchone()[0]
+    with sqlite3.connect("binary_mlm.db") as conn:
+        cursor = conn.cursor()
         
-        if direct_count < 10:
-            target_commission_user = raw_referrer_id
-        else:
-            target_commission_user = ADMIN_ID
-    
-    effective_parent_id = get_effective_parent_for_matrix(raw_referrer_id if raw_referrer_id else ADMIN_ID)
-    parent_id, position = find_available_position_under(effective_parent_id)
-    
-    package_price = get_setting('package_price', float)
-    commission_percent = get_setting('commission_percent', float)
-    commission_amount = package_price * (commission_percent / 100.0)
-    
-    cursor.execute("UPDATE users SET balance = balance + ? WHERE user_id = ?", (commission_amount, target_commission_user))
-    cursor.execute("""
-        UPDATE users SET parent_id = ?, position = ?, is_active = 1 WHERE user_id = ?
-    """, (parent_id, position, user_id))
-    
-    conn.commit()
-    conn.close()
+        cursor.execute("SELECT is_active, referrer_id, fullname FROM users WHERE user_id = ?", (user_id,))
+        res = cursor.fetchone()
+        if not res or res[0] == 1:
+            return False
+        
+        raw_referrer_id = res[1]
+        user_fullname = res[2]
+        
+        target_commission_user = ADMIN_ID
+        if raw_referrer_id and raw_referrer_id != ADMIN_ID:
+            cursor.execute("SELECT COUNT(*) FROM users WHERE referrer_id = ? AND is_active = 1", (raw_referrer_id,))
+            direct_count = cursor.fetchone()[0]
+            
+            if direct_count < 10:
+                target_commission_user = raw_referrer_id
+            else:
+                target_commission_user = ADMIN_ID
+        
+        effective_parent_id = get_effective_parent_for_matrix(raw_referrer_id if raw_referrer_id else ADMIN_ID)
+        parent_id, position = find_available_position_under(effective_parent_id)
+        
+        package_price = get_setting('package_price', float)
+        commission_percent = get_setting('commission_percent', float)
+        commission_amount = package_price * (commission_percent / 100.0)
+        
+        cursor.execute("UPDATE users SET balance = balance + ? WHERE user_id = ?", (commission_amount, target_commission_user))
+        cursor.execute("""
+            UPDATE users SET parent_id = ?, position = ?, is_active = 1 WHERE user_id = ?
+        """, (parent_id, position, user_id))
+        conn.commit()
 
     try:
         bot_info = await bot.get_me()
@@ -324,60 +314,53 @@ async def activate_user_in_matrix(user_id, bot: Bot):
 def get_effective_parent_for_matrix(referrer_id):
     if not referrer_id:
         return ADMIN_ID
-    conn = sqlite3.connect("binary_mlm.db")
-    cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*) FROM users WHERE parent_id = ? AND is_active = 1", (referrer_id,))
-    count = cursor.fetchone()[0]
-    conn.close()
+    with sqlite3.connect("binary_mlm.db") as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM users WHERE parent_id = ? AND is_active = 1", (referrer_id,))
+        count = cursor.fetchone()[0]
     
     if count >= 10:
         return find_available_matrix_parent()
     return referrer_id
 
 def find_available_matrix_parent():
-    conn = sqlite3.connect("binary_mlm.db")
-    cursor = conn.cursor()
-    queue = [ADMIN_ID]
-    while queue:
-        current_id = queue.pop(0)
-        cursor.execute("SELECT user_id FROM users WHERE parent_id = ? AND position = 'LEFT' AND is_active = 1", (current_id,))
-        left_child = cursor.fetchone()
-        if not left_child:
-            conn.close()
-            return current_id
-        else:
-            queue.append(left_child[0])
-            
-        cursor.execute("SELECT user_id FROM users WHERE parent_id = ? AND position = 'RIGHT' AND is_active = 1", (current_id,))
-        right_child = cursor.fetchone()
-        if not right_child:
-            conn.close()
-            return current_id
-        else:
-            queue.append(right_child[0])
-    conn.close()
+    with sqlite3.connect("binary_mlm.db") as conn:
+        cursor = conn.cursor()
+        queue = [ADMIN_ID]
+        while queue:
+            current_id = queue.pop(0)
+            cursor.execute("SELECT user_id FROM users WHERE parent_id = ? AND position = 'LEFT' AND is_active = 1", (current_id,))
+            left_child = cursor.fetchone()
+            if not left_child:
+                return current_id
+            else:
+                queue.append(left_child[0])
+                
+            cursor.execute("SELECT user_id FROM users WHERE parent_id = ? AND position = 'RIGHT' AND is_active = 1", (current_id,))
+            right_child = cursor.fetchone()
+            if not right_child:
+                return current_id
+            else:
+                queue.append(right_child[0])
     return ADMIN_ID
 
 def find_available_position_under(start_user_id):
-    conn = sqlite3.connect("binary_mlm.db")
-    cursor = conn.cursor()
-    queue = [start_user_id]
-    while queue:
-        current_id = queue.pop(0)
-        cursor.execute("SELECT user_id FROM users WHERE parent_id = ? AND position = 'LEFT'", (current_id,))
-        if not cursor.fetchone():
-            conn.close()
-            return current_id, 'LEFT'
-        
-        cursor.execute("SELECT user_id FROM users WHERE parent_id = ? AND position = 'RIGHT'", (current_id,))
-        if not cursor.fetchone():
-            conn.close()
-            return current_id, 'RIGHT'
+    with sqlite3.connect("binary_mlm.db") as conn:
+        cursor = conn.cursor()
+        queue = [start_user_id]
+        while queue:
+            current_id = queue.pop(0)
+            cursor.execute("SELECT user_id FROM users WHERE parent_id = ? AND position = 'LEFT'", (current_id,))
+            if not cursor.fetchone():
+                return current_id, 'LEFT'
             
-        cursor.execute("SELECT user_id FROM users WHERE parent_id = ? ORDER BY position", (current_id,))
-        for child in cursor.fetchall():
-            queue.append(child[0])
-    conn.close()
+            cursor.execute("SELECT user_id FROM users WHERE parent_id = ? AND position = 'RIGHT'", (current_id,))
+            if not cursor.fetchone():
+                return current_id, 'RIGHT'
+                
+            cursor.execute("SELECT user_id FROM users WHERE parent_id = ? ORDER BY position", (current_id,))
+            for child in cursor.fetchall():
+                queue.append(child[0])
     return start_user_id, 'LEFT'
 
 # ----------------- BOT HANDLERS -----------------
@@ -437,11 +420,10 @@ async def cmd_start(message: types.Message, state: FSMContext):
 async def language_selection_callback(callback: types.CallbackQuery, state: FSMContext):
     selected_lang = "am" if callback.data == "lang_am" else "en"
     
-    conn = sqlite3.connect("binary_mlm.db")
-    cursor = conn.cursor()
-    cursor.execute("UPDATE users SET lang = ? WHERE user_id = ?", (selected_lang, callback.from_user.id))
-    conn.commit()
-    conn.close()
+    with sqlite3.connect("binary_mlm.db") as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE users SET lang = ? WHERE user_id = ?", (selected_lang, callback.from_user.id))
+        conn.commit()
 
     user = get_user(callback.from_user.id)
     
@@ -485,24 +467,14 @@ async def toggle_language_handler(callback: types.CallbackQuery):
     current_lang = get_user_lang(callback.from_user.id)
     new_lang = 'en' if current_lang == 'am' else 'am'
     
-    conn = sqlite3.connect("binary_mlm.db")
-    cursor = conn.cursor()
-    cursor.execute("UPDATE users SET lang = ? WHERE user_id = ?", (new_lang, callback.from_user.id))
-    conn.commit()
-    conn.close()
+    with sqlite3.connect("binary_mlm.db") as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE users SET lang = ? WHERE user_id = ?", (new_lang, callback.from_user.id))
+        conn.commit()
     
     user = get_user(callback.from_user.id)
     await show_main_menu(callback, user)
     await callback.answer("Language Updated Successfully!")
-
-@router.callback_query(F.data == "ask_phone_prompt")
-async def ask_phone_prompt_handler(callback: types.CallbackQuery, state: FSMContext):
-    await state.set_state(UserProfileSetup.waiting_for_phone)
-    await callback.message.edit_caption(
-        caption="እባክዎ ትክክለኛ የስልክ ቁጥርዎን ይጻፉልኝ (ምሳሌ፦ 0911223344):",
-        parse_mode="HTML"
-    )
-    await callback.answer()
 
 @router.message(UserProfileSetup.waiting_for_phone)
 async def process_user_phone(message: types.Message, state: FSMContext):
@@ -521,12 +493,11 @@ async def process_user_payment_info(message: types.Message, state: FSMContext):
     data = await state.get_data()
     phone = data.get("phone")
     
-    conn = sqlite3.connect("binary_mlm.db")
-    cursor = conn.cursor()
-    cursor.execute("UPDATE users SET phone_number = ?, payment_account = ? WHERE user_id = ?", 
-                   (phone, payment_info, message.from_user.id))
-    conn.commit()
-    conn.close()
+    with sqlite3.connect("binary_mlm.db") as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE users SET phone_number = ?, payment_account = ? WHERE user_id = ?", 
+                       (phone, payment_info, message.from_user.id))
+        conn.commit()
     
     await state.clear()
     user = get_user(message.from_user.id)
@@ -639,13 +610,12 @@ async def process_manual_receipt(message: types.Message, state: FSMContext):
     amount = data.get("amount", get_setting('package_price', float))
     pay_type = data.get("payment_type", "PACKAGE")
 
-    conn = sqlite3.connect("binary_mlm.db")
-    cursor = conn.cursor()
-    cursor.execute("INSERT INTO manual_payments (user_id, amount, photo_id, payment_type, status) VALUES (?, ?, ?, ?, 'PENDING')",
-                   (user_id, amount, photo_id, pay_type))
-    mp_id = cursor.lastrowid
-    conn.commit()
-    conn.close()
+    with sqlite3.connect("binary_mlm.db") as conn:
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO manual_payments (user_id, amount, photo_id, payment_type, status) VALUES (?, ?, ?, ?, 'PENDING')",
+                       (user_id, amount, photo_id, pay_type))
+        mp_id = cursor.lastrowid
+        conn.commit()
 
     await state.clear()
 
@@ -685,24 +655,21 @@ async def approve_manual_payment(callback: types.CallbackQuery):
     if callback.from_user.id != ADMIN_ID: return
     mp_id = int(callback.data.split("_")[2])
     
-    conn = sqlite3.connect("binary_mlm.db")
-    cursor = conn.cursor()
-    cursor.execute("SELECT user_id, amount, payment_type, status FROM manual_payments WHERE id = ?", (mp_id,))
-    row = cursor.fetchone()
-    
-    if not row or row[3] == 'APPROVED':
-        conn.close()
-        await callback.answer("❌ ይህ ክፍያ ቀድሞውኑ ጸድቋል ወይም አልተገኘም!", show_alert=True)
-        return
+    with sqlite3.connect("binary_mlm.db") as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT user_id, amount, payment_type, status FROM manual_payments WHERE id = ?", (mp_id,))
+        row = cursor.fetchone()
+        
+        if not row or row[3] == 'APPROVED':
+            await callback.answer("❌ ይህ ክፍያ ቀድሞውኑ ጸድቋል ወይም አልተገኘም!", show_alert=True)
+            return
 
-    user_id, amount, pay_type = row[0], row[1], row[2]
-    cursor.execute("UPDATE manual_payments SET status = 'APPROVED' WHERE id = ?", (mp_id,))
-    
-    if pay_type == 'DEPOSIT':
-        cursor.execute("UPDATE users SET balance = balance + ? WHERE user_id = ?", (amount, user_id))
-    
-    conn.commit()
-    conn.close()
+        user_id, amount, pay_type = row[0], row[1], row[2]
+        cursor.execute("UPDATE manual_payments SET status = 'APPROVED' WHERE id = ?", (mp_id,))
+        
+        if pay_type == 'DEPOSIT':
+            cursor.execute("UPDATE users SET balance = balance + ? WHERE user_id = ?", (amount, user_id))
+        conn.commit()
 
     if pay_type == 'PACKAGE':
         await activate_user_in_matrix(user_id, callback.bot)
@@ -733,20 +700,18 @@ async def cancel_manual_payment(callback: types.CallbackQuery):
     if callback.from_user.id != ADMIN_ID: return
     mp_id = int(callback.data.split("_")[2])
     
-    conn = sqlite3.connect("binary_mlm.db")
-    cursor = conn.cursor()
-    cursor.execute("SELECT user_id, amount, status FROM manual_payments WHERE id = ?", (mp_id,))
-    row = cursor.fetchone()
-    
-    if not row or row[2] == 'CANCELLED':
-        conn.close()
-        await callback.answer("❌ ቀድሞውኑ ተሰርዟል!", show_alert=True)
-        return
+    with sqlite3.connect("binary_mlm.db") as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT user_id, amount, status FROM manual_payments WHERE id = ?", (mp_id,))
+        row = cursor.fetchone()
+        
+        if not row or row[2] == 'CANCELLED':
+            await callback.answer("❌ ቀድሞውኑ ተሰርዟል!", show_alert=True)
+            return
 
-    user_id, amount = row[0], row[1]
-    cursor.execute("UPDATE manual_payments SET status = 'CANCELLED' WHERE id = ?", (mp_id,))
-    conn.commit()
-    conn.close()
+        user_id, amount = row[0], row[1]
+        cursor.execute("UPDATE manual_payments SET status = 'CANCELLED' WHERE id = ?", (mp_id,))
+        conn.commit()
 
     try:
         await callback.bot.send_message(user_id, f"❌ <b>የላኩት የማኑዋል ክፍያ ደረሰኝ ({amount} ETB) በአድሚን ውድቅ ተደርጓል (ተሰርዟል)።</b>", parse_mode="HTML")
@@ -770,12 +735,11 @@ async def block_user_action(callback: types.CallbackQuery):
     user_id = int(parts[2])
     mp_id = int(parts[3])
 
-    conn = sqlite3.connect("binary_mlm.db")
-    cursor = conn.cursor()
-    cursor.execute("UPDATE users SET is_blocked = 1 WHERE user_id = ?", (user_id,))
-    cursor.execute("UPDATE manual_payments SET status = 'BLOCKED' WHERE id = ?", (mp_id,))
-    conn.commit()
-    conn.close()
+    with sqlite3.connect("binary_mlm.db") as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE users SET is_blocked = 1 WHERE user_id = ?", (user_id,))
+        cursor.execute("UPDATE manual_payments SET status = 'BLOCKED' WHERE id = ?", (mp_id,))
+        conn.commit()
 
     try:
         await callback.bot.send_message(user_id, "🚫 <b>አካውንትዎ በአድሚን ታግዷል። (Account Blocked)</b>", parse_mode="HTML")
@@ -870,12 +834,11 @@ async def process_buy_coin(message: types.Message, state: FSMContext):
         return
 
     await state.clear()
-    conn = sqlite3.connect("binary_mlm.db")
-    cursor = conn.cursor()
-    cursor.execute("UPDATE users SET balance = balance - ?, coin_balance = coin_balance + ? WHERE user_id = ?",
-                   (total_cost, coins_to_buy, message.from_user.id))
-    conn.commit()
-    conn.close()
+    with sqlite3.connect("binary_mlm.db") as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE users SET balance = balance - ?, coin_balance = coin_balance + ? WHERE user_id = ?",
+                       (total_cost, coins_to_buy, message.from_user.id))
+        conn.commit()
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🪙 ወደ ሎሚ ገበያ ተመለስ", callback_data="lomi_market")]
@@ -928,12 +891,11 @@ async def process_sell_coin(message: types.Message, state: FSMContext):
     await state.clear()
     earned_birr = coins_to_sell * coin_price
 
-    conn = sqlite3.connect("binary_mlm.db")
-    cursor = conn.cursor()
-    cursor.execute("UPDATE users SET coin_balance = coin_balance - ?, balance = balance + ? WHERE user_id = ?",
-                   (coins_to_sell, earned_birr, message.from_user.id))
-    conn.commit()
-    conn.close()
+    with sqlite3.connect("binary_mlm.db") as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE users SET coin_balance = coin_balance - ?, balance = balance + ? WHERE user_id = ?",
+                       (coins_to_sell, earned_birr, message.from_user.id))
+        conn.commit()
 
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="🪙 ወደ ሎሚ ገበያ ተመለስ", callback_data="lomi_market")]
@@ -959,7 +921,7 @@ async def pay_chapa_package(callback: types.CallbackQuery):
         return
 
     package_price = get_setting('package_price', float)
-    tx_ref = f"pkg-{user_id}-{int(asyncio.get_running_loop().time())}"
+    tx_ref = f"pkg-{user_id}-{int(asyncio.get_event_loop().time())}"
 
     base_url = RENDER_EXTERNAL_URL if RENDER_EXTERNAL_URL else "https://your-app.onrender.com"
     callback_url = f"{base_url}/chapa-webhook"
@@ -979,12 +941,11 @@ async def pay_chapa_package(callback: types.CallbackQuery):
             if resp.status == 200 and res_data.get("status") == "success":
                 checkout_url = res_data["data"]["checkout_url"]
                 
-                conn = sqlite3.connect("binary_mlm.db")
-                cursor = conn.cursor()
-                cursor.execute("INSERT OR REPLACE INTO transactions (tx_ref, user_id, amount, status, type) VALUES (?, ?, ?, 'PENDING', 'PACKAGE')",
-                               (tx_ref, user_id, package_price))
-                conn.commit()
-                conn.close()
+                with sqlite3.connect("binary_mlm.db") as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("INSERT OR REPLACE INTO transactions (tx_ref, user_id, amount, status, type) VALUES (?, ?, ?, 'PENDING', 'PACKAGE')",
+                                   (tx_ref, user_id, package_price))
+                    conn.commit()
 
                 keyboard = InlineKeyboardMarkup(inline_keyboard=[
                     [InlineKeyboardButton(text="💳 በቻፓ (Chapa) ክፍያ ይፈጽሙ", url=checkout_url)],
@@ -1005,11 +966,10 @@ async def pay_chapa_package(callback: types.CallbackQuery):
 @router.callback_query(F.data.startswith("verify_pkg_"))
 async def verify_package_payment(callback: types.CallbackQuery):
     tx_ref = callback.data.split("_", 2)[2]
-    conn = sqlite3.connect("binary_mlm.db")
-    cursor = conn.cursor()
-    cursor.execute("SELECT status, user_id FROM transactions WHERE tx_ref = ?", (tx_ref,))
-    tx_row = cursor.fetchone()
-    conn.close()
+    with sqlite3.connect("binary_mlm.db") as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT status, user_id FROM transactions WHERE tx_ref = ?", (tx_ref,))
+        tx_row = cursor.fetchone()
 
     if not tx_row:
         await callback.answer("❌ የግብይት መረጃ አልተገኘም።", show_alert=True)
@@ -1025,11 +985,10 @@ async def verify_package_payment(callback: types.CallbackQuery):
         async with session.get(f"https://api.chapa.co/v1/transaction/verify/{tx_ref}", headers=headers) as resp:
             res_data = await resp.json()
             if resp.status == 200 and res_data.get("status") == "success" and res_data.get("data", {}).get("status") == "success":
-                conn = sqlite3.connect("binary_mlm.db")
-                cursor = conn.cursor()
-                cursor.execute("UPDATE transactions SET status = 'SUCCESS' WHERE tx_ref = ?", (tx_ref,))
-                conn.commit()
-                conn.close()
+                with sqlite3.connect("binary_mlm.db") as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("UPDATE transactions SET status = 'SUCCESS' WHERE tx_ref = ?", (tx_ref,))
+                    conn.commit()
 
                 await activate_user_in_matrix(user_id, callback.bot)
                 await callback.answer("✅ ክፍያዎ ተረጋግጧል እና አካውንትዎ ገብቷል!", show_alert=True)
@@ -1104,13 +1063,12 @@ async def process_service_order(message: types.Message, state: FSMContext):
     user_id = message.from_user.id
     await state.clear()
 
-    conn = sqlite3.connect("binary_mlm.db")
-    cursor = conn.cursor()
-    cursor.execute("INSERT INTO service_orders (user_id, service_type, detail, status) VALUES (?, ?, ?, 'PENDING')",
-                   (user_id, s_type, detail))
-    order_id = cursor.lastrowid
-    conn.commit()
-    conn.close()
+    with sqlite3.connect("binary_mlm.db") as conn:
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO service_orders (user_id, service_type, detail, status) VALUES (?, ?, ?, 'PENDING')",
+                       (user_id, s_type, detail))
+        order_id = cursor.lastrowid
+        conn.commit()
 
     try:
         admin_text = f"🔔 <b>አዲስ የዲጂታል አገልግሎት ትዕዛዝ!</b>\n👤 ተጠቃሚ: {message.from_user.full_name}\n📦 አገልግሎት: {s_type}\n📝 ዝርዝር:\n{detail}"
@@ -1126,18 +1084,17 @@ async def process_service_order(message: types.Message, state: FSMContext):
 async def approve_service_order(callback: types.CallbackQuery):
     if callback.from_user.id != ADMIN_ID: return
     order_id = int(callback.data.split("_")[2])
-    conn = sqlite3.connect("binary_mlm.db")
-    cursor = conn.cursor()
-    cursor.execute("SELECT user_id, service_type FROM service_orders WHERE id = ?", (order_id,))
-    row = cursor.fetchone()
-    if row:
-        cursor.execute("UPDATE service_orders SET status = 'APPROVED' WHERE id = ?", (order_id,))
-        conn.commit()
-        try:
-            await callback.bot.send_message(row[0], f"🎉 <b>የጠየቁት አገልግሎት ({row[1]}) ጸድቆ ተፈጽሟል!</b>", parse_mode="HTML")
-        except Exception:
-            pass
-    conn.close()
+    with sqlite3.connect("binary_mlm.db") as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT user_id, service_type FROM service_orders WHERE id = ?", (order_id,))
+        row = cursor.fetchone()
+        if row:
+            cursor.execute("UPDATE service_orders SET status = 'APPROVED' WHERE id = ?", (order_id,))
+            conn.commit()
+            try:
+                await callback.bot.send_message(row[0], f"🎉 <b>የጠየቁት አገልግሎት ({row[1]}) ጸድቆ ተፈጽሟል!</b>", parse_mode="HTML")
+            except Exception:
+                pass
     await callback.answer("ጸድቋል!")
 
 # ----------------- WALLET DEPOSIT -----------------
@@ -1189,7 +1146,7 @@ async def process_wallet_deposit(message: types.Message, state: FSMContext):
         )
         return
 
-    tx_ref = f"dep-{message.from_user.id}-{int(asyncio.get_running_loop().time())}"
+    tx_ref = f"dep-{message.from_user.id}-{int(asyncio.get_event_loop().time())}"
     base_url = RENDER_EXTERNAL_URL if RENDER_EXTERNAL_URL else "https://your-app.onrender.com"
     
     headers = {"Authorization": f"Bearer {CHAPA_SECRET_KEY}", "Content-Type": "application/json"}
@@ -1206,12 +1163,11 @@ async def process_wallet_deposit(message: types.Message, state: FSMContext):
             res_data = await resp.json()
             if resp.status == 200 and res_data.get("status") == "success":
                 checkout_url = res_data["data"]["checkout_url"]
-                conn = sqlite3.connect("binary_mlm.db")
-                cursor = conn.cursor()
-                cursor.execute("INSERT OR REPLACE INTO transactions (tx_ref, user_id, amount, status, type) VALUES (?, ?, ?, 'PENDING', 'DEPOSIT')",
-                               (tx_ref, message.from_user.id, amount))
-                conn.commit()
-                conn.close()
+                with sqlite3.connect("binary_mlm.db") as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("INSERT OR REPLACE INTO transactions (tx_ref, user_id, amount, status, type) VALUES (?, ?, ?, 'PENDING', 'DEPOSIT')",
+                                   (tx_ref, message.from_user.id, amount))
+                    conn.commit()
 
                 keyboard = InlineKeyboardMarkup(inline_keyboard=[
                     [InlineKeyboardButton(text="🔗 በቻፓ ለመክፈል እዚህ ይጫኑ", url=checkout_url)],
@@ -1224,11 +1180,10 @@ async def process_wallet_deposit(message: types.Message, state: FSMContext):
 @router.callback_query(F.data.startswith("verify_dep_"))
 async def verify_deposit_payment(callback: types.CallbackQuery):
     tx_ref = callback.data.split("_", 2)[2]
-    conn = sqlite3.connect("binary_mlm.db")
-    cursor = conn.cursor()
-    cursor.execute("SELECT status, user_id, amount FROM transactions WHERE tx_ref = ?", (tx_ref,))
-    row = cursor.fetchone()
-    conn.close()
+    with sqlite3.connect("binary_mlm.db") as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT status, user_id, amount FROM transactions WHERE tx_ref = ?", (tx_ref,))
+        row = cursor.fetchone()
 
     if not row or row[0] == 'SUCCESS':
         await callback.answer("✅ ቀድሞውኑ ተረጋግጧል!", show_alert=True)
@@ -1239,12 +1194,11 @@ async def verify_deposit_payment(callback: types.CallbackQuery):
         async with session.get(f"https://api.chapa.co/v1/transaction/verify/{tx_ref}", headers=headers) as resp:
             res_data = await resp.json()
             if resp.status == 200 and res_data.get("status") == "success" and res_data.get("data", {}).get("status") == "success":
-                conn = sqlite3.connect("binary_mlm.db")
-                cursor = conn.cursor()
-                cursor.execute("UPDATE transactions SET status = 'SUCCESS' WHERE tx_ref = ?", (tx_ref,))
-                cursor.execute("UPDATE users SET balance = balance + ? WHERE user_id = ?", (row[2], row[1]))
-                conn.commit()
-                conn.close()
+                with sqlite3.connect("binary_mlm.db") as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("UPDATE transactions SET status = 'SUCCESS' WHERE tx_ref = ?", (tx_ref,))
+                    cursor.execute("UPDATE users SET balance = balance + ? WHERE user_id = ?", (row[2], row[1]))
+                    conn.commit()
                 await callback.answer(f"🎉 ክፍያዎ ተረጋግጧል! {row[2]} ETB ወደ ዋሌትዎ ገብቷል።", show_alert=True)
             else:
                 await callback.answer("❌ ክፍያዎ ገና በባንክ አልተረጋገጠም።", show_alert=True)
@@ -1294,13 +1248,12 @@ async def process_p2p_amount(message: types.Message, state: FSMContext):
         return
 
     await state.clear()
-    conn = sqlite3.connect("binary_mlm.db")
-    cursor = conn.cursor()
-    cursor.execute("UPDATE users SET balance = balance - ? WHERE user_id = ?", (amount + fee, message.from_user.id))
-    cursor.execute("UPDATE users SET balance = balance + ? WHERE user_id = ?", (amount, data.get("recipient_id")))
-    cursor.execute("UPDATE users SET balance = balance + ? WHERE user_id = ?", (fee, ADMIN_ID))
-    conn.commit()
-    conn.close()
+    with sqlite3.connect("binary_mlm.db") as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE users SET balance = balance - ? WHERE user_id = ?", (amount + fee, message.from_user.id))
+        cursor.execute("UPDATE users SET balance = balance + ? WHERE user_id = ?", (amount, data.get("recipient_id")))
+        cursor.execute("UPDATE users SET balance = balance + ? WHERE user_id = ?", (fee, ADMIN_ID))
+        conn.commit()
 
     await message.answer(f"✅ ገንዘቡ ለ<b>{data.get('recipient_name')}</b> ተላልፏል!", parse_mode="HTML")
 
@@ -1335,14 +1288,13 @@ async def process_withdraw_amount(message: types.Message, state: FSMContext):
     net = amount - fee
     acc = user[10] or user[9] or "አልታወቀም"
 
-    conn = sqlite3.connect("binary_mlm.db")
-    cursor = conn.cursor()
-    cursor.execute("UPDATE users SET balance = balance - ? WHERE user_id = ?", (amount, message.from_user.id))
-    cursor.execute("INSERT INTO withdrawals (user_id, amount, fee, net_amount, account_info, status) VALUES (?, ?, ?, ?, ?, 'PENDING')",
-                   (message.from_user.id, amount, fee, net, acc))
-    wd_id = cursor.lastrowid
-    conn.commit()
-    conn.close()
+    with sqlite3.connect("binary_mlm.db") as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE users SET balance = balance - ? WHERE user_id = ?", (amount, message.from_user.id))
+        cursor.execute("INSERT INTO withdrawals (user_id, amount, fee, net_amount, account_info, status) VALUES (?, ?, ?, ?, ?, 'PENDING')",
+                       (message.from_user.id, amount, fee, net, acc))
+        wd_id = cursor.lastrowid
+        conn.commit()
 
     try:
         await message.bot.send_message(
@@ -1360,18 +1312,17 @@ async def process_withdraw_amount(message: types.Message, state: FSMContext):
 async def approve_withdrawal(callback: types.CallbackQuery):
     if callback.from_user.id != ADMIN_ID: return
     wd_id = int(callback.data.split("_")[2])
-    conn = sqlite3.connect("binary_mlm.db")
-    cursor = conn.cursor()
-    cursor.execute("SELECT user_id, net_amount FROM withdrawals WHERE id = ?", (wd_id,))
-    row = cursor.fetchone()
-    if row:
-        cursor.execute("UPDATE withdrawals SET status = 'APPROVED' WHERE id = ?", (wd_id,))
-        conn.commit()
-        try:
-            await callback.bot.send_message(row[0], f"🎉 <b>የጠየቁት ዊዝድሮ ጸድቆ ተፈጽሟል!</b>\n💵 {row[1]} ETB ተልኳል።", parse_mode="HTML")
-        except Exception:
-            pass
-    conn.close()
+    with sqlite3.connect("binary_mlm.db") as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT user_id, net_amount FROM withdrawals WHERE id = ?", (wd_id,))
+        row = cursor.fetchone()
+        if row:
+            cursor.execute("UPDATE withdrawals SET status = 'APPROVED' WHERE id = ?", (wd_id,))
+            conn.commit()
+            try:
+                await callback.bot.send_message(row[0], f"🎉 <b>የጠየቁት ዊዝድሮ ጸድቆ ተፈጽሟል!</b>\n💵 {row[1]} ETB ተልኳል።", parse_mode="HTML")
+            except Exception:
+                pass
     await callback.answer("ጸድቋል!")
 
 # ----------------- ABOUT & TUTORIAL -----------------
@@ -1404,13 +1355,12 @@ async def my_account_callback(callback: types.CallbackQuery):
     bot_info = await callback.bot.get_me()
     ref_link = f"https://t.me/{bot_info.username}?start={callback.from_user.id}"
 
-    conn = sqlite3.connect("binary_mlm.db")
-    cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*) FROM users WHERE referrer_id = ?", (callback.from_user.id,))
-    total_refs = cursor.fetchone()[0]
-    cursor.execute("SELECT COUNT(*) FROM users WHERE referrer_id = ? AND is_active = 1", (callback.from_user.id,))
-    active_refs = cursor.fetchone()[0]
-    conn.close()
+    with sqlite3.connect("binary_mlm.db") as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM users WHERE referrer_id = ?", (callback.from_user.id,))
+        total_refs = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM users WHERE referrer_id = ? AND is_active = 1", (callback.from_user.id,))
+        active_refs = cursor.fetchone()[0]
 
     keyboard_buttons = [
         [InlineKeyboardButton(text="💸 Withdraw", callback_data="request_withdraw"), InlineKeyboardButton(text="🔄 P2P Transfer", callback_data="p2p_transfer")],
@@ -1550,39 +1500,33 @@ async def handle_chapa_webhook(request):
         status = data.get("status")
 
         if tx_ref:
-            conn = sqlite3.connect("binary_mlm.db")
-            cursor = conn.cursor()
-            cursor.execute("SELECT user_id, amount, type, status FROM transactions WHERE tx_ref = ?", (tx_ref,))
-            tx_row = cursor.fetchone()
-            
-            if tx_row and tx_row[3] != 'SUCCESS':
-                user_id, amount, tx_type, _ = tx_row
+            with sqlite3.connect("binary_mlm.db") as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT user_id, amount, type, status FROM transactions WHERE tx_ref = ?", (tx_ref,))
+                tx_row = cursor.fetchone()
                 
-                if status in ["success", "successful"]:
-                    cursor.execute("UPDATE transactions SET status = 'SUCCESS' WHERE tx_ref = ?", (tx_ref,))
+                if tx_row and tx_row[3] != 'SUCCESS':
+                    user_id, amount, tx_type, _ = tx_row
                     
-                    if tx_type == 'PACKAGE':
+                    if status in ["success", "successful"]:
+                        cursor.execute("UPDATE transactions SET status = 'SUCCESS' WHERE tx_ref = ?", (tx_ref,))
                         conn.commit()
-                        conn.close()
-                        bot = request.app['bot']
-                        await activate_user_in_matrix(user_id, bot)
-                        try:
-                            await bot.send_message(user_id, "🎉 <b>የፓኬጅ ክፍያዎ ተረጋግጦ አካውንትዎ ንቁ ሆኗል።</b>", parse_mode="HTML")
-                        except Exception:
-                            pass
-                    elif tx_type == 'DEPOSIT':
-                        cursor.execute("UPDATE users SET balance = balance + ? WHERE user_id = ?", (amount, user_id))
-                        conn.commit()
-                        conn.close()
-                        bot = request.app['bot']
-                        try:
-                            await bot.send_message(user_id, f"🎉 <b>ክፍያዎ ተረጋግጧል! {amount} ETB ወደ ዋሌትዎ ገብቷል።</b>", parse_mode="HTML")
-                        except Exception:
-                            pass
-                else:
-                    conn.close()
-            else:
-                if conn: conn.close()
+                        
+                        if tx_type == 'PACKAGE':
+                            bot = request.app['bot']
+                            await activate_user_in_matrix(user_id, bot)
+                            try:
+                                await bot.send_message(user_id, "🎉 <b>የፓኬጅ ክፍያዎ ተረጋግጦ አካውንትዎ ንቁ ሆኗል።</b>", parse_mode="HTML")
+                            except Exception:
+                                pass
+                        elif tx_type == 'DEPOSIT':
+                            cursor.execute("UPDATE users SET balance = balance + ? WHERE user_id = ?", (amount, user_id))
+                            conn.commit()
+                            bot = request.app['bot']
+                            try:
+                                await bot.send_message(user_id, f"🎉 <b>ክፍያዎ ተረጋግጧል! {amount} ETB ወደ ዋሌትዎ ገብቷል።</b>", parse_mode="HTML")
+                            except Exception:
+                                pass
         return web.json_response({"status": "received"})
     except Exception as e:
         logging.error(f"Webhook error: {e}")
