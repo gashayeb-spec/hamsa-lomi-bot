@@ -24,7 +24,7 @@ CHANNEL_ID = -1002345678901
 TUTORIAL_VIDEO_URL = "https://t.me/Hamisalomi_bot_official"
 
 # የሳክሰስ ፎቶ ሊንክ (የእርስዎ ፎቶ)
-WELCOME_PHOTO_URL = "https://i.ibb.co/3m3v331/success-image.jpg" # እዚህ ላይ የፎቶውን ሊንክ ያስገቡ (ወይም ፋይል ਆਈዲ)
+WELCOME_PHOTO_URL = "https://i.ibb.co/3m3v331/success-image.jpg"
 
 # ----------------- BANK & PAYMENT DETAILS -----------------
 ACCOUNT_HOLDER = "ጋሻዬ በጅጉ ሄሬጎ (Gashaye Bejigu Herego)"
@@ -412,7 +412,6 @@ async def cmd_start(message: types.Message, state: FSMContext):
         )
         user = get_user(message.from_user.id)
 
-    # ተጠቃሚው ሲጀምር በመጀመሪያ ቋንቋ እንዲመርጥ ማድረግ (የሳክሰስ ፎቶ ከነ ቋንቋ ምርጫ ቁልፎች ጋር)
     lang_keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [
             InlineKeyboardButton(text="አማርኛ 🇪🇹", callback_data="lang_am"),
@@ -446,7 +445,6 @@ async def language_selection_callback(callback: types.CallbackQuery, state: FSMC
 
     user = get_user(callback.from_user.id)
     
-    # ስልክ ቁጥር እና የክፍያ አካውንት ካልሰጠ መጠየቅ
     if not user[9] or not user[10]:
         await state.set_state(UserProfileSetup.waiting_for_phone)
         welcome_start_keyboard = InlineKeyboardMarkup(inline_keyboard=[
@@ -496,6 +494,15 @@ async def toggle_language_handler(callback: types.CallbackQuery):
     user = get_user(callback.from_user.id)
     await show_main_menu(callback, user)
     await callback.answer("Language Updated Successfully!")
+
+@router.callback_query(F.data == "ask_phone_prompt")
+async def ask_phone_prompt_handler(callback: types.CallbackQuery, state: FSMContext):
+    await state.set_state(UserProfileSetup.waiting_for_phone)
+    await callback.message.edit_caption(
+        caption="እባክዎ ትክክለኛ የስልክ ቁጥርዎን ይጻፉልኝ (ምሳሌ፦ 0911223344):",
+        parse_mode="HTML"
+    )
+    await callback.answer()
 
 @router.message(UserProfileSetup.waiting_for_phone)
 async def process_user_phone(message: types.Message, state: FSMContext):
@@ -952,7 +959,7 @@ async def pay_chapa_package(callback: types.CallbackQuery):
         return
 
     package_price = get_setting('package_price', float)
-    tx_ref = f"pkg-{user_id}-{int(asyncio.get_event_loop().time())}"
+    tx_ref = f"pkg-{user_id}-{int(asyncio.get_running_loop().time())}"
 
     base_url = RENDER_EXTERNAL_URL if RENDER_EXTERNAL_URL else "https://your-app.onrender.com"
     callback_url = f"{base_url}/chapa-webhook"
@@ -1182,7 +1189,7 @@ async def process_wallet_deposit(message: types.Message, state: FSMContext):
         )
         return
 
-    tx_ref = f"dep-{message.from_user.id}-{int(asyncio.get_event_loop().time())}"
+    tx_ref = f"dep-{message.from_user.id}-{int(asyncio.get_running_loop().time())}"
     base_url = RENDER_EXTERNAL_URL if RENDER_EXTERNAL_URL else "https://your-app.onrender.com"
     
     headers = {"Authorization": f"Bearer {CHAPA_SECRET_KEY}", "Content-Type": "application/json"}
