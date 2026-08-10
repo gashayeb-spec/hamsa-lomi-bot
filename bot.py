@@ -108,7 +108,8 @@ def init_db():
             coin_balance REAL DEFAULT 0.0,
             phone_number TEXT,
             payment_account TEXT,
-            wallet_id TEXT UNIQUE
+            wallet_id TEXT UNIQUE,
+            is_blocked INTEGER DEFAULT 0
         )
     """)
     
@@ -128,6 +129,7 @@ def init_db():
             user_id INTEGER,
             amount REAL,
             photo_id TEXT,
+            payment_type TEXT DEFAULT 'PACKAGE',
             status TEXT DEFAULT 'PENDING',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
@@ -204,8 +206,8 @@ def register_pending_user(user_id, username, fullname, referrer_id):
     conn = sqlite3.connect("binary_mlm.db")
     cursor = conn.cursor()
     cursor.execute("""
-        INSERT OR IGNORE INTO users (user_id, username, fullname, referrer_id, is_active, wallet_id) 
-        VALUES (?, ?, ?, ?, 0, ?)
+        INSERT OR IGNORE INTO users (user_id, username, fullname, referrer_id, is_active, wallet_id, is_blocked) 
+        VALUES (?, ?, ?, ?, 0, ?, 0)
     """, (user_id, username, fullname, referrer_id, wallet_id))
     conn.commit()
     conn.close()
@@ -338,6 +340,11 @@ async def cmd_start(message: types.Message, state: FSMContext):
     except Exception:
         pass
 
+    user = get_user(message.from_user.id)
+    if user and user[12] == 1: # is_blocked check
+        await message.answer("❌ አካውንትዎ በአድሚን ታግዷል። (Account Blocked)")
+        return
+
     args = message.text.split()
     referrer_id = None
     if len(args) > 1:
@@ -348,7 +355,6 @@ async def cmd_start(message: types.Message, state: FSMContext):
         except ValueError:
             referrer_id = None
 
-    user = get_user(message.from_user.id)
     if not user:
         register_pending_user(
             message.from_user.id,
@@ -382,6 +388,10 @@ async def main_menu_callback_handler(callback: types.CallbackQuery, state: FSMCo
     except Exception:
         pass
     user = get_user(callback.from_user.id)
+    if user and user[12] == 1:
+        await callback.answer("❌ አካውንትዎ በአድሚን ታግዷል።", show_alert=True)
+        return
+
     if not user:
         register_pending_user(
             callback.from_user.id,
@@ -497,10 +507,11 @@ async def payment_options_menu(callback: types.CallbackQuery):
 async def manual_payment_start(callback: types.CallbackQuery, state: FSMContext):
     package_price = get_setting('package_price', float)
     await state.set_state(ManualPaymentStates.waiting_for_receipt)
+    await state.update_data(payment_type="PACKAGE", amount=package_price)
     
     text = (
         f"{BANK_DETAILS_TEXT}\n\n"
-        f"📌 <b>የሚከፈለው መጠን:</b> <b>{package_price} ETB</b>\n\n"
+        f"📌 <b>የሚከፈለው መጠን:</b> <b>{package_price} ETB (ፓኬጅ ማግበር)</b>\n\n"
         f"እባክዎ ከላይ በተዘረዘሩት የባንክ አካውንቶች ገንዘቡን ካስተላለፉ በኋላ **የክፍያውን ደረሰኝ ፎቶ (Screenshot)** በዚህ ቦት ላይ ይላኩላቸው (Upload ያድርጉ)፦"
     )
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
@@ -517,12 +528,15 @@ async def process_manual_receipt(message: types.Message, state: FSMContext):
     photo: PhotoSize = message.photo[-1]
     photo_id = photo.file_id
     user_id = message.from_user.id
-    package_price = get_setting('package_price', float)
+    
+    data = await state.get_data()
+    amount = data.get("amount", get_setting('package_price', float))
+    pay_type = data.get("payment_type", "PACKAGE")
 
     conn = sqlite3.connect("binary_mlm.db")
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO manual_payments (user_id, amount, photo_id, status) VALUES (?, ?, ?, 'PENDING')",
-                   (user_id, package_price, photo_id))
+    cursor.execute("INSERT INTO manual_payments (user_id, amount, photo_id, payment_type, status) VALUES (?, ?, ?, ?, 'PENDING')",
+                   (user_id, amount, photo_id, pay_type))
     mp_id = cursor.lastrowid
     conn.commit()
     conn.close()
@@ -533,10 +547,18 @@ async def process_manual_receipt(message: types.Message, state: FSMContext):
         admin_text = (
             f"🔔 <b>አዲስ የማኑዋል ክፍያ ማረጋገጫ ደረሰኝ!</b>\n\n"
             f"👤 ተጠቃሚ: {message.from_user.full_name} (ID: <code>{user_id}</code>)\n"
-            f"💰 መጠን: <b>{package_price} ETB</b>"
+            f"💰 መጠን: <b>{amount} ETB</b>\n"
+            f"🏷️ ዓይነት: <b>{pay_type}</b>"
         )
+        # አድሚኑ የሚቆጣጠርባቸው ሶስት አማራጮች (አጽድቅ፣ ሰርዝ፣ አግድ)
         admin_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="✅ አጽድቅ እና አካውንት ከፈት", callback_data=f"app_mp_{mp_id}")]
+            [
+                InlineKeyboardButton(text="✅ አጽድቅ (Approve)", callback_data=f"app_mp_{mp_id}"),
+                InlineKeyboardButton(text="❌ ሰርዝ (Cancel)", callback_data=f"canc_mp_{mp_id}")
+            ],
+            [
+                InlineKeyboardButton(text="🚫 ተጠቃሚውን አግድ (Block)", callback_data=f"block_usr_{user_id}_{mp_id}")
+            ]
         ])
         await message.bot.send_photo(ADMIN_ID, photo=photo_id, caption=admin_text, reply_markup=admin_keyboard, parse_mode="HTML")
     except Exception as e:
@@ -545,7 +567,7 @@ async def process_manual_receipt(message: types.Message, state: FSMContext):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🏠 ዋና ገጽ", callback_data="main_menu")]])
     await message.answer(
         "✅ <b>ደረሰኝዎ በትክክል ተልኳል!</b>\n\n"
-        "አድሚኑ ደረሰኙን አረጋግጦ አካውንትዎን በቅርቡ ያቀናብርልዎታል። እናመሰግናለን!",
+        "አድሚኑ ደረሰኙን አረጋግጦ ጥያቄዎን በቅርቡ ያቀናብርልዎታል። እናመሰግናለን!",
         reply_markup=keyboard, parse_mode="HTML"
     )
 
@@ -553,35 +575,42 @@ async def process_manual_receipt(message: types.Message, state: FSMContext):
 async def process_manual_receipt_wrong_format(message: types.Message):
     await message.answer("❌ እባክዎ የክፍያውን ደረሰኝ **ፎቶ (Screenshot)** ብቻ ይላኩላት።")
 
+# 1. አድሚኑ ሲያጸድቅ (Approve)
 @router.callback_query(F.data.startswith("app_mp_"))
 async def approve_manual_payment(callback: types.CallbackQuery):
-    if callback.from_user.id != ADMIN_ID:
-        return
+    if callback.from_user.id != ADMIN_ID: return
     mp_id = int(callback.data.split("_")[2])
     
     conn = sqlite3.connect("binary_mlm.db")
     cursor = conn.cursor()
-    cursor.execute("SELECT user_id, amount, status FROM manual_payments WHERE id = ?", (mp_id,))
+    cursor.execute("SELECT user_id, amount, payment_type, status FROM manual_payments WHERE id = ?", (mp_id,))
     row = cursor.fetchone()
     
-    if not row or row[2] == 'APPROVED':
+    if not row or row[3] == 'APPROVED':
         conn.close()
         await callback.answer("❌ ይህ ክፍያ ቀድሞውኑ ጸድቋል ወይም አልተገኘም!", show_alert=True)
         return
 
-    user_id = row[0]
+    user_id, amount, pay_type = row[0], row[1], row[2]
     cursor.execute("UPDATE manual_payments SET status = 'APPROVED' WHERE id = ?", (mp_id,))
+    
+    if pay_type == 'DEPOSIT':
+        cursor.execute("UPDATE users SET balance = balance + ? WHERE user_id = ?", (amount, user_id))
+    
     conn.commit()
     conn.close()
 
-    activated = await activate_user_in_matrix(user_id, callback.bot)
+    if pay_type == 'PACKAGE':
+        await activate_user_in_matrix(user_id, callback.bot)
     
     try:
-        await callback.bot.send_message(
-            user_id,
-            "🎉 <b>እንኳን ደስ አለዎት! የማኑዋል ክፍያዎ ጸድቆ አካውንትዎ ንቁ (Active) ሆኗል። አሁን በጋራ እንበለጽጋለን!</b>",
-            parse_mode="HTML"
-        )
+        msg_text = f"🎉 <b>እንኳን ደስ አለዎት! የማኑዋል ክፍያዎ ({amount} ETB) በአድሚን ጸድቋል።</b>"
+        if pay_type == 'DEPOSIT':
+            msg_text += f"\n💰 {amount} ETB ወደ ዋሌትዎ ገብቷል!"
+        else:
+            msg_text += "\n🚀 አካውንትዎ ንቁ (Active) ሆኗል!"
+            
+        await callback.bot.send_message(user_id, msg_text, parse_mode="HTML")
     except Exception:
         pass
 
@@ -597,12 +626,88 @@ async def approve_manual_payment(callback: types.CallbackQuery):
         except Exception:
             pass
 
-    await callback.answer("ክፍያው ጸድቆ አካውንቱ ገብቷል!")
+    await callback.answer("ክፍያው ጸድቋል!")
+
+# 2. አድሚኑ ሲሰርዝ (Cancel)
+@router.callback_query(F.data.startswith("canc_mp_"))
+async def cancel_manual_payment(callback: types.CallbackQuery):
+    if callback.from_user.id != ADMIN_ID: return
+    mp_id = int(callback.data.split("_")[2])
+    
+    conn = sqlite3.connect("binary_mlm.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT user_id, amount, status FROM manual_payments WHERE id = ?", (mp_id,))
+    row = cursor.fetchone()
+    
+    if not row or row[2] == 'CANCELLED':
+        conn.close()
+        await callback.answer("❌ ቀድሞውኑ ተሰርዟል!", show_alert=True)
+        return
+
+    user_id, amount = row[0], row[1]
+    cursor.execute("UPDATE manual_payments SET status = 'CANCELLED' WHERE id = ?", (mp_id,))
+    conn.commit()
+    conn.close()
+
+    try:
+        await callback.bot.send_message(
+            user_id, 
+            f"❌ <b>የላኩት የማኑዋል ክፍያ ደረሰኝ ({amount} ETB) በአድሚን ውድቅ ተደርጓል (ተሰርዟል)።</b>\nእባክዎ ትክክለኛ ደረሰኝ እንደገና ይላኩ ወይም የደንበኛ ድጋፍ ያግኙ።", 
+            parse_mode="HTML"
+        )
+    except Exception:
+        pass
+
+    try:
+        await callback.message.edit_caption(
+            caption=f"{callback.message.caption or ''}\n\n❌ <b> በአድሚን ተሰርዟል (Cancelled)!</b>",
+            reply_markup=None,
+            parse_mode="HTML"
+        )
+    except Exception:
+        pass
+
+    await callback.answer("ክፍያው ተሰርዟል!")
+
+# 3. አድሚኑ ተጠቃሚውን ሲያግድ (Block)
+@router.callback_query(F.data.startswith("block_usr_"))
+async def block_user_action(callback: types.CallbackQuery):
+    if callback.from_user.id != ADMIN_ID: return
+    parts = callback.data.split("_")
+    user_id = int(parts[2])
+    mp_id = int(parts[3])
+
+    conn = sqlite3.connect("binary_mlm.db")
+    cursor = conn.cursor()
+    cursor.execute("UPDATE users SET is_blocked = 1 WHERE user_id = ?", (user_id,))
+    cursor.execute("UPDATE manual_payments SET status = 'BLOCKED' WHERE id = ?", (mp_id,))
+    conn.commit()
+    conn.close()
+
+    try:
+        await callback.bot.send_message(user_id, "🚫 <b>አካውንትዎ በአድሚን ታግዷል። (Account Blocked)</b>", parse_mode="HTML")
+    except Exception:
+        pass
+
+    try:
+        await callback.message.edit_caption(
+            caption=f"{callback.message.caption or ''}\n\n🚫 <b>ተጠቃሚው በአድሚን ታግዷል (Blocked)!</b>",
+            reply_markup=None,
+            parse_mode="HTML"
+        )
+    except Exception:
+        pass
+
+    await callback.answer("ተጠቃሚው ታግዷል!")
 
 # ----------------- LOMI COIN MARKET HANDLERS (BUY / SELL) -----------------
 @router.callback_query(F.data == "lomi_market")
 async def lomi_market_menu(callback: types.CallbackQuery):
     user = get_user(callback.from_user.id)
+    if user and user[12] == 1:
+        await callback.answer("❌ አካውንትዎ ታግዷል።", show_alert=True)
+        return
+
     coin_price = get_setting('lomi_coin_price', float)
     balance = user[7] if user else 0.0
     coin_balance = user[8] if user else 0.0
@@ -785,6 +890,7 @@ async def pay_chapa_package(callback: types.CallbackQuery):
         "last_name": callback.from_user.last_name or "Lomi",
         "tx_ref": tx_ref,
         "callback_url": callback_url,
+        "return_url": f"https://t.me/{(await callback.bot.get_me()).username}",
         "customization[title]": "50 Lomi Package Activation",
         "customization[description]": f"Activate Binary MLM Account for {package_price} ETB"
     }
@@ -981,12 +1087,30 @@ async def approve_service_order(callback: types.CallbackQuery):
     await callback.message.edit_text(f"{callback.message.text}\n\n✅ ጸድቋል", parse_mode="HTML")
     await callback.answer("ጸድቋል!")
 
-# ----------------- WALLET DEPOSIT (CHAPA) -----------------
+# ----------------- WALLET DEPOSIT (CHAPA & MANUAL) -----------------
 @router.callback_query(F.data == "wallet_deposit")
 async def wallet_deposit_start(callback: types.CallbackQuery, state: FSMContext):
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="💳 በቻፓ (Chapa) በኦንላይን ጫን", callback_data="deposit_chapa")],
+        [InlineKeyboardButton(text="🏦 በባንክ ደረሰኝ (Manual Deposit)", callback_data="deposit_manual")],
+        [InlineKeyboardButton(text="⬅️ Back", callback_data="main_menu")]
+    ])
+    await callback.message.edit_text("📥 <b>ገንዘብ ወደ ዋሌት ጫን (Deposit Options)</b>\n\nገንዘብ መሙላት የሚፈልጉበትን መንገድ ይምረጡ፦", reply_markup=keyboard, parse_mode="HTML")
+    await callback.answer()
+
+@router.callback_query(F.data == "deposit_chapa")
+async def deposit_chapa_start(callback: types.CallbackQuery, state: FSMContext):
     await state.set_state(DepositStates.waiting_for_amount)
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Back", callback_data="main_menu")]])
-    await callback.message.edit_text("📥 <b>ገንዘብ ወደ ዋሌት ጫን</b>\n\nማስገባት የሚፈልጉትን የብር መጠን (ETB) ጻፉልኝ፦", reply_markup=keyboard, parse_mode="HTML")
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Back", callback_data="wallet_deposit")]])
+    await callback.message.edit_text("📥 <b>በቻፓ ገንዘብ ማከማቸት</b>\n\nማስገባት የሚፈልጉትን የብር መጠን (ETB) ጻፉልኝ፦", reply_markup=keyboard, parse_mode="HTML")
+    await callback.answer()
+
+@router.callback_query(F.data == "deposit_manual")
+async def deposit_manual_start(callback: types.CallbackQuery, state: FSMContext):
+    await state.set_state(DepositStates.waiting_for_amount)
+    await state.update_data(is_manual_deposit=True)
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Back", callback_data="wallet_deposit")]])
+    await callback.message.edit_text("📥 <b>በባንክ ዴፖዚት ማድረግ</b>\n\nወደ ባንክ አካውንታችን ያስተላለፉትን **የብር መጠን (ETB)** ጻፉልኝ (ከዚህ በኋላ የደረሰኝ ፎቶ ይጠየቃሉ)፦", reply_markup=keyboard, parse_mode="HTML")
     await callback.answer()
 
 @router.message(DepositStates.waiting_for_amount)
@@ -998,7 +1122,20 @@ async def process_wallet_deposit(message: types.Message, state: FSMContext):
         await message.answer("❌ እባክዎ ትክክለኛ የብር መጠን ያስገቡ።")
         return
 
+    data = await state.get_data()
+    is_manual = data.get("is_manual_deposit", False)
     await state.clear()
+
+    if is_manual:
+        await state.set_state(ManualPaymentStates.waiting_for_receipt)
+        await state.update_data(payment_type="DEPOSIT", amount=amount)
+        await message.answer(
+            f"{BANK_DETAILS_TEXT}\n\n"
+            f"📌 <b>የጠየቁት የዲፖዚት መጠን:</b> <b>{amount} ETB</b>\n\n"
+            f"እባክዎ ገንዘቡን ከላኩ በኋላ **የባንኩን የክፍያ ደረሰኝ ፎቶ (Screenshot)** በዚህ ቦት ላይ ይላኩላቸው፦"
+        )
+        return
+
     tx_ref = f"dep-{message.from_user.id}-{int(asyncio.get_event_loop().time())}"
     base_url = RENDER_EXTERNAL_URL if RENDER_EXTERNAL_URL else "https://your-app.onrender.com"
     
@@ -1006,7 +1143,9 @@ async def process_wallet_deposit(message: types.Message, state: FSMContext):
     payload = {
         "amount": str(amount), "currency": "ETB", "email": f"user{message.from_user.id}@gmail.com",
         "first_name": message.from_user.first_name or "User", "tx_ref": tx_ref,
-        "callback_url": f"{base_url}/chapa-webhook", "customization[title]": "Wallet Deposit"
+        "callback_url": f"{base_url}/chapa-webhook",
+        "return_url": f"https://t.me/{(await message.bot.get_me()).username}",
+        "customization[title]": "Wallet Deposit"
     }
 
     async with aiohttp.ClientSession() as session:
