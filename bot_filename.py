@@ -2,6 +2,7 @@ import asyncio
 import logging
 import os
 import sqlite3
+import random
 from aiogram import Bot, Dispatcher, F, Router, types
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
@@ -22,24 +23,24 @@ RENDER_EXTERNAL_URL = os.getenv("RENDER_EXTERNAL_URL", "").strip()
 CHANNEL_USERNAME = "@Hamisalomi_bot_official" 
 CHANNEL_ID = -1002345678901 
 TUTORIAL_VIDEO_URL = "https://t.me/Hamisalomi_bot_official"
-
-# የሳክሰስ ፎቶ ሊንክ (የእርስዎ ፎቶ)
 WELCOME_PHOTO_URL = "https://i.ibb.co/3m3v331/success-image.jpg"
 
-# ----------------- BANK & PAYMENT DETAILS -----------------
+# ----------------- BANK & PAYMENT DETAILS (የተስተካከለ ውብ አቀማመጥ እና ክሊክ ሊደረግ የሚችል) -----------------
 ACCOUNT_HOLDER = "ጋሻዬ በጅጉ ሄሬጎ (Gashaye Bejigu Herego)"
 BANK_DETAILS_TEXT = (
     f"🏦 <b>━━━━━━━━━━━━━━━━━━━</b>\n"
-    f"🌟 <b>የባንክ እና የሞባይል ቦርሳ መረጃዎች / Bank Details</b>\n"
-    f"🏦 <b>━━━━━━━━━━━━━━━━━━━</b>\n"
-    f"👤 <b>የሂሳብ ባለቤት / Account Holder:</b> {ACCOUNT_HOLDER}\n\n"
-    f"• <b>የኢትዮጵያ ንግድ ባንክ (CBE):</b> <code>1000070780201</code>\n"
-    f"• <b>ቴሌብር (Telebirr):</b> <code>0916039015</code>\n"
-    f"• <b>ሲቢኢ ብር (CBE Birr):</b> <code>0916039015</code>\n"
-    f"• <b>አቢሲኒያ ባንክ (Bank of Abyssinia):</b> <code>54071628</code>\n"
-    f"• <b>ንብ ባንክ (Nib Bank):</b> <code>7000007057569</code>\n"
-    f"• <b>አዋሽ ባንክ (Awash Bank):</b> <code>01325229622800</code>\n"
-    f"• <b>ዳሽን ባንክ (Dashen Bank):</b> <code>5121355033201</code>\n\n"
+    f"🌟 <b>የባንክ እና የሞባይል ቦርሳ መረጃዎች</b>\n"
+    f"🏦 <b>━━━━━━━━━━━━━━━━━━━</b>\n\n"
+    f"👤 <b>የሂሳብ ባለቤት / Account Holder:</b>\n"
+    f"<b>{ACCOUNT_HOLDER}</b>\n\n"
+    f"📋 <b>የባንክ አካውንቶች (ለመቅዳት ቁጥሩን ይጫኑ):</b>\n\n"
+    f"• <b>የኢትዮጵያ ንግድ ባንክ (CBE):</b>\n  <code>1000070780201</code>\n\n"
+    f"• <b>ቴሌብር (Telebirr):</b>\n  <code>0916039015</code>\n\n"
+    f"• <b>ሲቢኢ ብር (CBE Birr):</b>\n  <code>0916039015</code>\n\n"
+    f"• <b>አቢሲኒያ ባንክ (Bank of Abyssinia):</b>\n  <code>54071628</code>\n\n"
+    f"• <b>ንብ ባንክ (Nib Bank):</b>\n  <code>7000007057569</code>\n\n"
+    f"• <b>አዋሽ ባንክ (Awash Bank):</b>\n  <code>01325229622800</code>\n\n"
+    f"• <b>ዳሽን ባንክ (Dashen Bank):</b>\n  <code>5121355033201</code>\n\n"
     f"⚠️ <i>ገንዘብ ካስተላለፉ በኋላ የክፍያ መግለጫውን ወይም የደረሰኝ ፎቶ (Screenshot) በዚህ ቦት ይላኩ!</i>"
 )
 
@@ -52,6 +53,7 @@ class AdminConfig(StatesGroup):
     waiting_for_commission = State()
     waiting_for_coin_price = State()
     waiting_for_support_phone = State()
+    waiting_for_broadcast = State()
 
 class UserProfileSetup(StatesGroup):
     waiting_for_phone = State()
@@ -215,10 +217,10 @@ def register_pending_user(user_id, username, fullname, referrer_id):
 TEXTS = {
     'am': {
         'welcome': "ሰላም <b>{}</b>!\n\nእንኳን ወደ 50 ሎሚ በደህና መጡ፤ <b>በጋራ እንበለጽጋለን!</b> 🤝🍋\n\nየአሁኑ የፓኬጅ ዋጋ: <b>{} ETB</b>\nየስራ ኮሚሽን: <b>{}%</b>\n🪙 <b>የ 1 ሎሚ ኮይን ገበያ ዋጋ: {} ETB</b>\n\nከታች ካሉት አማራጮች ውስጥ የሚፈልጉትን መምረጥ ይችላሉ።",
-        'lomi_market': "🪙 ሎሚ ኮይን ግይድ/ሽያጭ (Lomi Market)",
+        'lomi_market': "🪙 ሎሚ ኮይን ገበያ (Lomi Market)",
         'payment_options': "💳 ፓኬጅ ይግዙ (Chapa & Manual)",
         'wallet_deposit': "📥 ገንዘብ ወደ ዋሌት ጫን (Deposit)",
-        'my_account': "📊 የኔ ዋሌት እና አካውንት (Wallet)",
+        'my_account': "📊 የኔ ዋሌት እና አካውንት (Wallet Status)",
         'digital_services': "🛒 የዲጂታል አገልግሎቶች (Mobile & Ads)",
         'customer_support': "📞 Customer Support & Banks",
         'bot_about': "ℹ️ ስለ 50 ሎሚ እና አሰራር (About)",
@@ -234,7 +236,7 @@ TEXTS = {
         'lomi_market': "🪙 Lomi Coin Market",
         'payment_options': "💳 Buy Package (Chapa & Manual)",
         'wallet_deposit': "📥 Wallet Deposit",
-        'my_account': "📊 My Wallet & Account",
+        'my_account': "📊 My Wallet & Account Status",
         'digital_services': "🛒 Digital Services (Mobile & Ads)",
         'customer_support': "📞 Customer Support & Banks",
         'bot_about': "ℹ️ About 50 Lomi",
@@ -253,7 +255,7 @@ def get_user_lang(user_id):
         return user[13]
     return 'am'
 
-# ----------------- MATRIX & REFERRAL LOGIC -----------------
+# ----------------- MATRIX & REFERRAL LOGIC WITH CHANNEL NOTIFICATION -----------------
 async def activate_user_in_matrix(user_id, bot: Bot):
     with sqlite3.connect("binary_mlm.db") as conn:
         cursor = conn.cursor()
@@ -289,17 +291,16 @@ async def activate_user_in_matrix(user_id, bot: Bot):
         """, (parent_id, position, user_id))
         conn.commit()
 
+    # 📢 ቻናል ላይ የምዝገባ ማሳወቂያ እና ወደ ቦት መመለሻ አዝራር (Channel Registration Alert & Button)
     try:
         bot_info = await bot.get_me()
         bot_username = bot_info.username
         channel_text = (
-            f"🌐 <b>የ 50 ሎሚ ኦፊሻል ማህበረሰብ ዜና</b>\n\n"
+            f"🟢 <b>የ 50 ሎሚ ኦፊሻል ማህበረሰብ ዜና (Announcement)</b>\n\n"
             f"🎉 <b>አዲስ ንቁ አባል በጋራ ብልጽግና መድረክ ተመዝግቧል!</b>\n\n"
             f"👤 ስም: <b>{user_fullname}</b>\n"
             f"🚀 50 ሎሚ ቦት - በጋራ እናድጋለን፣ በጋራ እንበለጽጋለን!\n\n"
-            f"እርስዎም አሁኑኑ በመግባት የራስዎን ገቢ መገንባት ይጀምሩ፦\n"
-            f"👉 ቦት ሊንክ: https://t.me/{bot_username}\n"
-            f"📢 ቻናል: https://t.me/{CHANNEL_USERNAME.replace('@', '')}"
+            f"እርስዎም አሁኑኑ በመግባት የራስዎን ገቢ መገንባት ይጀምሩ፦"
         )
         channel_keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="🤖 ቦቱን ለመቀላቀል እዚህ ይጫኑ", url=f"https://t.me/{bot_username}")],
@@ -307,7 +308,7 @@ async def activate_user_in_matrix(user_id, bot: Bot):
         ])
         await bot.send_message(CHANNEL_ID, channel_text, reply_markup=channel_keyboard, parse_mode="HTML")
     except Exception as e:
-        logging.error(f"Failed to send channel notification: {e}")
+        logging.error(f"Failed to send channel registration alert: {e}")
 
     return True
 
@@ -363,6 +364,171 @@ def find_available_position_under(start_user_id):
                 queue.append(child[0])
     return start_user_id, 'LEFT'
 
+# ----------------- ADMIN COMMANDS (Broadcast, Users, Status, Dynamic Settings, Lottery) -----------------
+
+@router.message(Command("broadcast"))
+async def cmd_broadcast(message: types.Message, state: FSMContext):
+    if message.from_user.id != ADMIN_ID:
+        return
+    await state.set_state(AdminConfig.waiting_for_broadcast)
+    await message.answer("📢 ለሁሉም ተጠቃሚዎች ማስተላለፍ የሚፈልጉትን መልክት (ጽሁፍ ወይም ፎቶ) ይላኩሊኝ:")
+
+@router.message(AdminConfig.waiting_for_broadcast)
+async def process_broadcast(message: types.Message, state: FSMContext):
+    if message.from_user.id != ADMIN_ID:
+        return
+    await state.clear()
+    
+    with sqlite3.connect("binary_mlm.db") as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT user_id FROM users WHERE is_blocked = 0")
+        users = cursor.fetchall()
+        
+    sent_count = 0
+    failed_count = 0
+    
+    for u in users:
+        try:
+            if message.photo:
+                await message.bot.send_photo(u[0], photo=message.photo[-1].file_id, caption=message.caption, parse_mode="HTML")
+            else:
+                await message.bot.send_message(u[0], text=message.text, parse_mode="HTML")
+            sent_count += 1
+            await asyncio.sleep(0.05)
+        except Exception:
+            failed_count += 1
+            
+    await message.answer(f"✅ ማስታወቂያው ተጠናቋል!\n• ለሰዎች የተላከ: <b>{sent_count}</b>\n• ያልደረሳቸው: <b>{failed_count}</b>", parse_mode="HTML")
+
+@router.message(Command("users"))
+async def cmd_users_stats(message: types.Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+    with sqlite3.connect("binary_mlm.db") as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM users")
+        total_users = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM users WHERE is_active = 1")
+        active_users = cursor.fetchone()[0]
+        cursor.execute("SELECT COUNT(*) FROM users WHERE is_blocked = 1")
+        blocked_users = cursor.fetchone()[0]
+        
+    text = (
+        f"👥 <b>የተጠቃሚዎች ስታትስቲክስ (/users)</b>\n\n"
+        f"• ጠቅላላ የተመዘገቡ: <b>{total_users}</b>\n"
+        f"• ንቁ አባላት (Active): <b>{active_users}</b>\n"
+        f"• የታገዱ አባላት (Blocked): <b>{blocked_users}</b>"
+    )
+    await message.answer(text, parse_mode="HTML")
+
+@router.message(Command("status"))
+async def cmd_bot_status(message: types.Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+    price = get_setting('package_price', float)
+    comm = get_setting('commission_percent', float)
+    coin_price = get_setting('lomi_coin_price', float)
+    
+    with sqlite3.connect("binary_mlm.db") as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM users")
+        total_users = cursor.fetchone()[0]
+
+    text = (
+        f"🟢 <b>የቦቱ ስታተስ እና ጤንነት (System Status)</b>\n\n"
+        f"• ቦቱ ያለምንም ችግር እየሰራ ነው (Online)\n"
+        f"• ጠቅላላ ተጠቃሚዎች: <b>{total_users}</b>\n"
+        f"• ፓኬጅ ዋጋ: <b>{price} ETB</b>\n"
+        f"• ኮሚሽን: <b>{comm}%</b>\n"
+        f"• ሎሚ ኮይን ዋጋ: <b>{coin_price} ETB</b>"
+    )
+    await message.answer(text, parse_mode="HTML")
+
+@router.message(Command("setphone"))
+async def cmd_set_phone(message: types.Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+    args = message.text.split(maxsplit=1)
+    if len(args) < 2:
+        await message.answer("❌ እባክዎ አዲሱን ስልክ ቁጥር አብረው ይጻፉ።\nምሳሌ፦ `/setphone 0911223344`", parse_mode="HTML")
+        return
+    phone = args[1].strip()
+    set_setting('support_phone', phone)
+    await message.answer(f"✅ የድጋፍ ስልክ ቁጥር ተቀይሯል፦ <code>{phone}</code>", parse_mode="HTML")
+
+@router.message(Command("setcommission"))
+async def cmd_set_commission(message: types.Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+    args = message.text.split(maxsplit=1)
+    if len(args) < 2:
+        await message.answer("❌ እባክዎ መቶኛውን ይጻፉ።\nምሳሌ፦ `/setcommission 15`", parse_mode="HTML")
+        return
+    try:
+        val = float(args[1].strip())
+        set_setting('commission_percent', val)
+        await message.answer(f"✅ የኮሚሽን መጠን ወደ <b>{val}%</b> ተቀይሯል።", parse_mode="HTML")
+    except ValueError:
+        await message.answer("❌ ትክክለኛ ቁጥር ያስገቡ።")
+
+@router.message(Command("setprice"))
+async def cmd_set_price(message: types.Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+    args = message.text.split(maxsplit=1)
+    if len(args) < 2:
+        await message.answer("❌ እባክዎ ዋጋውን ይጻፉ።\nምሳሌ፦ `/setprice 600`", parse_mode="HTML")
+        return
+    try:
+        val = float(args[1].strip())
+        set_setting('package_price', val)
+        await message.answer(f"✅ የፓኬጅ ዋጋ ወደ <b>{val} ETB</b> ተቀይሯል።", parse_mode="HTML")
+    except ValueError:
+        await message.answer("❌ ትክክለኛ ቁጥር ያስገቡ።")
+
+@router.message(Command("lottery"))
+async def cmd_automated_lottery(message: types.Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+    
+    with sqlite3.connect("binary_mlm.db") as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT user_id, fullname FROM users WHERE is_active = 1")
+        active_users = cursor.fetchall()
+        
+    if not active_users:
+        await message.answer("❌ በሎተሪው ላይ ሊሳተፉ የሚችሉ ንቁ አባላት (Active Users) አልተገኙም!")
+        return
+        
+    winner = random.choice(active_users)
+    winner_id, winner_name = winner[0], winner[1]
+    prize = 500.0 # የሎተሪ ሽልማት መጠን
+    
+    with sqlite3.connect("binary_mlm.db") as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE users SET balance = balance + ? WHERE user_id = ?", (prize, winner_id))
+        conn.commit()
+        
+    lottery_text = (
+        f"🎉 <b>የ 50 ሎሚ አውቶማቲክ የሎተሪ ዕጣ አሸናፊ!</b> 🍋✨\n\n"
+        f"🏆 አሸናፊ ስም: <b>{winner_name}</b>\n"
+        f"🎁 የተሸለመው ገንዘብ: <b>{prize} ETB</b>\n\n"
+        f"እንኳን ደስ አለዎት! ገንዘቡ ወደ ዋሌትዎ ገብቷል!"
+    )
+    
+    # ለቻናል እና ለአሸናፊው መላክ
+    try:
+        await message.bot.send_message(CHANNEL_ID, lottery_text, parse_mode="HTML")
+    except Exception:
+        pass
+        
+    try:
+        await message.bot.send_message(winner_id, lottery_text, parse_mode="HTML")
+    except Exception:
+        pass
+        
+    await message.answer(f"✅ ሎተሪው በስኬት ተካሂዷል!\nአሸናፊ: <b>{winner_name}</b> (ID: {winner_id})", parse_mode="HTML")
+
 # ----------------- BOT HANDLERS -----------------
 @router.message(CommandStart())
 async def cmd_start(message: types.Message, state: FSMContext):
@@ -409,7 +575,6 @@ async def cmd_start(message: types.Message, state: FSMContext):
         f"Please choose your preferred language:"
     )
 
-    # ቴሌግራም የማይፈቅደውን answer_photo አስወግደን በጽሁፍ ብቻ (answer) ላክን
     await message.answer(
         text=caption_text,
         reply_markup=lang_keyboard,
@@ -1136,7 +1301,7 @@ async def process_wallet_deposit(message: types.Message, state: FSMContext):
         await message.answer(
             f"{BANK_DETAILS_TEXT}\n\n"
             f"📌 <b>የጠየቁት የዲፖዚት መጠን:</b> <b>{amount} ETB</b>\n\n"
-            f"እባክዎ ገንዘቡን ከላኩ በኋላ **የባንኩን የክፍያ ደረሰኝ ፎቶ (Screenshot)** በዚህ ቦት ላይ ይላኩላቸው፦"
+            f"እባክዎ ገንዘቡን ካለኩ በኋላ **የባንኩን የክፍያ ደረሰኝ ፎቶ (Screenshot)** በዚህ ቦት ላይ ይላኩላቸው፦"
         )
         return
 
@@ -1333,7 +1498,7 @@ async def tutorial_video_callback(callback: types.CallbackQuery):
     await callback.message.edit_text(text=f"🎬 <b>መመሪያ</b>\n<a href='{t_link}'>ቪዲዮውን ለማየት እዚህ ይጫኑ</a>", reply_markup=keyboard, parse_mode="HTML")
     await callback.answer()
 
-# ----------------- WALLET & ACCOUNT -----------------
+# ----------------- WALLET & ACCOUNT (STATUS & DETAILS & COLORED LINKS WITH SHARE) -----------------
 @router.callback_query(F.data == "my_account")
 async def my_account_callback(callback: types.CallbackQuery):
     user = get_user(callback.from_user.id)
@@ -1356,9 +1521,14 @@ async def my_account_callback(callback: types.CallbackQuery):
         cursor.execute("SELECT COUNT(*) FROM users WHERE referrer_id = ? AND is_active = 1", (callback.from_user.id,))
         active_refs = cursor.fetchone()[0]
 
+    # ቀለማት ያላቸው ሊንኮች እና ቀጥተኛ የሼር አዝራሮች (Colored Links & Direct Share Buttons)
+    share_text = f"እዚህ 50 ሎሚ ቦት ላይ በመመዝገብ በጋራ እንበለጽግ! 🚀\nሊንክ፦ {ref_link}"
+    encoded_share_url = f"https://t.me/share/url?url={ref_link}&text=እዚህ 50 ሎሚ ቦት ላይ ይመዝገቡ!"
+
     keyboard_buttons = [
         [InlineKeyboardButton(text="💸 Withdraw", callback_data="request_withdraw"), InlineKeyboardButton(text="🔄 P2P Transfer", callback_data="p2p_transfer")],
-        [InlineKeyboardButton(text="🪙 ሎሚ ኮይን ገበያ", callback_data="lomi_market")]
+        [InlineKeyboardButton(text="🪙 ሎሚ ኮይን ገበያ", callback_data="lomi_market")],
+        [InlineKeyboardButton(text="↗️ 🟢 ሊንኩን ሼር አድርግ (Share)", url=encoded_share_url)]
     ]
 
     if not is_active:
@@ -1367,18 +1537,18 @@ async def my_account_callback(callback: types.CallbackQuery):
     keyboard_buttons.append([InlineKeyboardButton(text="🏠 ዋና ገጽ", callback_data="main_menu")])
     keyboard = InlineKeyboardMarkup(inline_keyboard=keyboard_buttons)
 
-    status_text = "🟢 ንቁ (Active)" if is_active else "🔴 ስራ አልጀመረም (Pending)"
+    status_text = "🟢 ንቁ (Active)" if is_active else "🔴 ስራ አልጀመረም (Pending - Paired)"
     text = (
-        f"💳 <b>የእርስዎ ዋሌት እና አካውንት</b> (50 ሎሚ)\n\n"
-        f"👤 ስም: {callback.from_user.full_name}\n"
+        f"📊 <b>የእርስዎ ዋሌት እና አካውንት ስቴተስ (Status)</b>\n\n"
+        f"👤 ስም: <b>{callback.from_user.full_name}</b>\n"
         f"🆔 ዋሌት ID: <code>{wallet_id}</code>\n"
-        f"📞 ስልክ: {phone}\n"
-        f"🏦 የክፍያ አካውንት: {pay_acc}\n"
-        f"📌 ሁኔታ: {status_text}\n"
+        f"📞 ስልክ: <code>{phone}</code>\n"
+        f"🏦 የክፍያ አካውንት: <b>{pay_acc}</b>\n"
+        f"📌 የአካውንት ሁኔታ (Status): <b>{status_text}</b>\n\n"
         f"💰 የብር ቀሪ ሂሳብ: <b>{balance} ETB</b>\n"
         f"🪙 የሎሚ ኮይን ቀሪ ሂሳብ: <b>{coin_balance} ሎሚ ኮይን</b>\n\n"
-        f"👥 ሪፈራል: ጠቅላላ {total_refs} | ንቁ: {active_refs}\n\n"
-        f"🔗 <b>የእርስዎ ሪፈራል ሊንክ:</b>\n<code>{ref_link}</code>"
+        f"👥 ሪፈራል መረጃ: ጠቅላላ {total_refs} | ንቁ: {active_refs}\n\n"
+        f"🟢🟡🔴 <b>የእርስዎ ሪፈራል ሊንክ:</b>\n<code>{ref_link}</code>"
     )
     try:
         await callback.message.edit_text(text=text, reply_markup=keyboard, parse_mode="HTML")
