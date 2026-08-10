@@ -23,8 +23,8 @@ CHANNEL_USERNAME = "@Hamisalomi_bot_official"
 CHANNEL_ID = -1002345678901 
 TUTORIAL_VIDEO_URL = "https://t.me/Hamisalomi_bot_official"
 
-# ውብ የመግቢያ ፎቶ ሊንክ (يمكنك تغيير الرابط لصورة معبرة)
-WELCOME_PHOTO_URL = "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1000&auto=format&fit=crop"
+# የሳክሰስ ፎቶ ሊንክ (የእርስዎ ፎቶ)
+WELCOME_PHOTO_URL = "https://i.ibb.co/3m3v331/success-image.jpg" # እዚህ ላይ የፎቶውን ሊንክ ያስገቡ (ወይም ፋይል ਆਈዲ)
 
 # ----------------- BANK & PAYMENT DETAILS -----------------
 ACCOUNT_HOLDER = "ጋሻዬ በጅጉ ሄሬጎ (Gashaye Bejigu Herego)"
@@ -412,22 +412,54 @@ async def cmd_start(message: types.Message, state: FSMContext):
         )
         user = get_user(message.from_user.id)
 
+    # ተጠቃሚው ሲጀምር በመጀመሪያ ቋንቋ እንዲመርጥ ማድረግ (የሳክሰስ ፎቶ ከነ ቋንቋ ምርጫ ቁልፎች ጋር)
+    lang_keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [
+            InlineKeyboardButton(text="አማርኛ 🇪🇹", callback_data="lang_am"),
+            InlineKeyboardButton(text="English 🇬🇧", callback_data="lang_en")
+        ]
+    ])
+    
+    caption_text = (
+        f"ሰላም <b>{message.from_user.full_name}</b>!\n\n"
+        f"እንኳን ወደ 50 ሎሚ በደህና መጡ! (በጋራ እንበለጽጋለን! 🤝🍋)\n\n"
+        f"እባክዎ የሚፈልጉትን ቋንቋ ይምረጡ:\n"
+        f"Please choose your preferred language:"
+    )
+
+    await message.answer_photo(
+        photo=WELCOME_PHOTO_URL,
+        caption=caption_text,
+        reply_markup=lang_keyboard,
+        parse_mode="HTML"
+    )
+
+@router.callback_query(F.data.startswith("lang_"))
+async def language_selection_callback(callback: types.CallbackQuery, state: FSMContext):
+    selected_lang = "am" if callback.data == "lang_am" else "en"
+    
+    conn = sqlite3.connect("binary_mlm.db")
+    cursor = conn.cursor()
+    cursor.execute("UPDATE users SET lang = ? WHERE user_id = ?", (selected_lang, callback.from_user.id))
+    conn.commit()
+    conn.close()
+
+    user = get_user(callback.from_user.id)
+    
+    # ስልክ ቁጥር እና የክፍያ አካውንት ካልሰጠ መጠየቅ
     if not user[9] or not user[10]:
         await state.set_state(UserProfileSetup.waiting_for_phone)
         welcome_start_keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🚀 ቦቱን ይጀምሩ / Start", callback_data="main_menu")]
+            [InlineKeyboardButton(text="🚀 ቀጥል / Continue", callback_data="ask_phone_prompt")]
         ])
-        await message.answer(
-            f"ሰላም <b>{message.from_user.full_name}</b>!\n\n"
-            f"እንኳን ወደ 50 ሎሚ በሰላም መጡ! 🤝 (በጋራ እንበለጽጋለን!)\n"
-            f"የሪፈራል ሊንክ ከመሰጠቱ በፊት እባክዎ <b>ስልክ ቁጥርዎን</b> ይጻፉልኝ፦\n"
-            f"<i>(ምሳሌ: 0911223344)</i>",
+        await callback.message.edit_caption(
+            caption="ስልክ ቁጥርዎን እና የክፍያ አካውንትዎን ለመመዝገብ እባክዎ ቀጥል የሚለውን ይጫኑ ወይም ስልክ ቁጥርዎን ይጻፉልኝ፦\n<i>(ምሳሌ: 0911223344)</i>",
             reply_markup=welcome_start_keyboard,
             parse_mode="HTML"
         )
         return
 
-    await show_main_menu(message, user)
+    await show_main_menu(callback, user)
 
 @router.callback_query(F.data == "main_menu")
 async def main_menu_callback_handler(callback: types.CallbackQuery, state: FSMContext):
@@ -463,7 +495,7 @@ async def toggle_language_handler(callback: types.CallbackQuery):
     
     user = get_user(callback.from_user.id)
     await show_main_menu(callback, user)
-    await callback.answer("语言/Language Updated Successfully!")
+    await callback.answer("Language Updated Successfully!")
 
 @router.message(UserProfileSetup.waiting_for_phone)
 async def process_user_phone(message: types.Message, state: FSMContext):
