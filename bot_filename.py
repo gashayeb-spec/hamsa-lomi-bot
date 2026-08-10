@@ -291,6 +291,7 @@ async def activate_user_in_matrix(user_id, bot: Bot):
         """, (parent_id, position, user_id))
         conn.commit()
 
+    # 📢 ቻናል ላይ የምዝገባ ማሳወቂያ እና ወደ ቦት መመለሻ አዝራር (Channel Registration Alert & Button)
     try:
         bot_info = await bot.get_me()
         bot_username = bot_info.username
@@ -363,12 +364,11 @@ def find_available_position_under(start_user_id):
                 queue.append(child[0])
     return start_user_id, 'LEFT'
 
-# ----------------- ADMIN COMMANDS (Strictly Admin Only Check Added) -----------------
+# ----------------- ADMIN COMMANDS (Broadcast, Users, Status, Dynamic Settings, Lottery) -----------------
 
 @router.message(Command("broadcast"))
 async def cmd_broadcast(message: types.Message, state: FSMContext):
     if message.from_user.id != ADMIN_ID:
-        await message.answer("⛔️ ይህ ትዕዛዝ የሚሰራው ለአድሚን ብቻ ነው። (Admin Only)")
         return
     await state.set_state(AdminConfig.waiting_for_broadcast)
     await message.answer("📢 ለሁሉም ተጠቃሚዎች ማስተላለፍ የሚፈልጉትን መልክት (ጽሁፍ ወይም ፎቶ) ይላኩሊኝ:")
@@ -403,7 +403,6 @@ async def process_broadcast(message: types.Message, state: FSMContext):
 @router.message(Command("users"))
 async def cmd_users_stats(message: types.Message):
     if message.from_user.id != ADMIN_ID:
-        await message.answer("⛔️ ይህ ትዕዛዝ የሚሰራው ለአድሚን ብቻ ነው። (Admin Only)")
         return
     with sqlite3.connect("binary_mlm.db") as conn:
         cursor = conn.cursor()
@@ -425,7 +424,6 @@ async def cmd_users_stats(message: types.Message):
 @router.message(Command("status"))
 async def cmd_bot_status(message: types.Message):
     if message.from_user.id != ADMIN_ID:
-        await message.answer("⛔️ ይህ ትዕዛዝ የሚሰራው ለአድሚን ብቻ ነው። (Admin Only)")
         return
     price = get_setting('package_price', float)
     comm = get_setting('commission_percent', float)
@@ -449,7 +447,6 @@ async def cmd_bot_status(message: types.Message):
 @router.message(Command("setphone"))
 async def cmd_set_phone(message: types.Message):
     if message.from_user.id != ADMIN_ID:
-        await message.answer("⛔️ ይህ ትዕዛዝ የሚሰራው ለአድሚን ብቻ ነው። (Admin Only)")
         return
     args = message.text.split(maxsplit=1)
     if len(args) < 2:
@@ -462,7 +459,6 @@ async def cmd_set_phone(message: types.Message):
 @router.message(Command("setcommission"))
 async def cmd_set_commission(message: types.Message):
     if message.from_user.id != ADMIN_ID:
-        await message.answer("⛔️ ይህ ትዕዛዝ የሚሰራው ለአድሚን ብቻ ነው። (Admin Only)")
         return
     args = message.text.split(maxsplit=1)
     if len(args) < 2:
@@ -478,7 +474,6 @@ async def cmd_set_commission(message: types.Message):
 @router.message(Command("setprice"))
 async def cmd_set_price(message: types.Message):
     if message.from_user.id != ADMIN_ID:
-        await message.answer("⛔️ ይህ ትዕዛዝ የሚሰራው ለአድሚን ብቻ ነው። (Admin Only)")
         return
     args = message.text.split(maxsplit=1)
     if len(args) < 2:
@@ -494,7 +489,6 @@ async def cmd_set_price(message: types.Message):
 @router.message(Command("lottery"))
 async def cmd_automated_lottery(message: types.Message):
     if message.from_user.id != ADMIN_ID:
-        await message.answer("⛔️ ይህ ትዕዛዝ የሚሰራው ለአድሚን ብቻ ነው። (Admin Only)")
         return
     
     with sqlite3.connect("binary_mlm.db") as conn:
@@ -508,7 +502,7 @@ async def cmd_automated_lottery(message: types.Message):
         
     winner = random.choice(active_users)
     winner_id, winner_name = winner[0], winner[1]
-    prize = 500.0 
+    prize = 500.0 # የሎተሪ ሽልማት መጠን
     
     with sqlite3.connect("binary_mlm.db") as conn:
         cursor = conn.cursor()
@@ -522,6 +516,7 @@ async def cmd_automated_lottery(message: types.Message):
         f"እንኳን ደስ አለዎት! ገንዘቡ ወደ ዋሌትዎ ገብቷል!"
     )
     
+    # ለቻናል እና ለአሸናፊው መላክ
     try:
         await message.bot.send_message(CHANNEL_ID, lottery_text, parse_mode="HTML")
     except Exception:
@@ -603,7 +598,7 @@ async def language_selection_callback(callback: types.CallbackQuery, state: FSMC
             [InlineKeyboardButton(text="🚀 ቀጥል / Continue", callback_data="ask_phone_prompt")]
         ])
         await callback.message.edit_text(
-            text="ስልክ ቁጥርዎን እና የክፍያ አካውንትዎን ለመመዝገብ እባክዎ ቀጥል የሚለውን ይጫኑ ወይም ስልክ ቁጥርዎን ይጻፉልኝኝ፦\n<i>(ምሳሌ: 0911223344)</i>",
+            text="ስልክ ቁጥርዎን እና የክፍያ አካውንትዎን ለመመዝገብ እባክዎ ቀጥል የሚለውን ይጫኑ ወይም ስልክ ቁጥርዎን ይጻፉልኝ፦\n<i>(ምሳሌ: 0911223344)</i>",
             reply_markup=welcome_start_keyboard,
             parse_mode="HTML"
         )
@@ -1503,7 +1498,7 @@ async def tutorial_video_callback(callback: types.CallbackQuery):
     await callback.message.edit_text(text=f"🎬 <b>መመሪያ</b>\n<a href='{t_link}'>ቪዲዮውን ለማየት እዚህ ይጫኑ</a>", reply_markup=keyboard, parse_mode="HTML")
     await callback.answer()
 
-# ----------------- WALLET & ACCOUNT -----------------
+# ----------------- WALLET & ACCOUNT (STATUS & DETAILS & COLORED LINKS WITH SHARE) -----------------
 @router.callback_query(F.data == "my_account")
 async def my_account_callback(callback: types.CallbackQuery):
     user = get_user(callback.from_user.id)
@@ -1526,6 +1521,7 @@ async def my_account_callback(callback: types.CallbackQuery):
         cursor.execute("SELECT COUNT(*) FROM users WHERE referrer_id = ? AND is_active = 1", (callback.from_user.id,))
         active_refs = cursor.fetchone()[0]
 
+    # ቀለማት ያላቸው ሊንኮች እና ቀጥተኛ የሼር አዝራሮች (Colored Links & Direct Share Buttons)
     share_text = f"እዚህ 50 ሎሚ ቦት ላይ በመመዝገብ በጋራ እንበለጽግ! 🚀\nሊንክ፦ {ref_link}"
     encoded_share_url = f"https://t.me/share/url?url={ref_link}&text=እዚህ 50 ሎሚ ቦት ላይ ይመዝገቡ!"
 
