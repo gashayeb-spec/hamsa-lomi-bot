@@ -1,4 +1,4 @@
-Import asyncio
+import asyncio
 import logging
 import os
 import sqlite3
@@ -409,9 +409,9 @@ async def cmd_start(message: types.Message, state: FSMContext):
         f"Please choose your preferred language:"
     )
 
-    await message.answer_photo(
-        photo=WELCOME_PHOTO_URL,
-        caption=caption_text,
+    # ቴሌግራም የማይፈቅደውን answer_photo አስወግደን በጽሁፍ ብቻ (answer) ላክን
+    await message.answer(
+        text=caption_text,
         reply_markup=lang_keyboard,
         parse_mode="HTML"
     )
@@ -432,8 +432,8 @@ async def language_selection_callback(callback: types.CallbackQuery, state: FSMC
         welcome_start_keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="🚀 ቀጥል / Continue", callback_data="ask_phone_prompt")]
         ])
-        await callback.message.edit_caption(
-            caption="ስልክ ቁጥርዎን እና የክፍያ አካውንትዎን ለመመዝገብ እባክዎ ቀጥል የሚለውን ይጫኑ ወይም ስልክ ቁጥርዎን ይጻፉልኝ፦\n<i>(ምሳሌ: 0911223344)</i>",
+        await callback.message.edit_text(
+            text="ስልክ ቁጥርዎን እና የክፍያ አካውንትዎን ለመመዝገብ እባክዎ ቀጥል የሚለውን ይጫኑ ወይም ስልክ ቁጥርዎን ይጻፉልኝ፦\n<i>(ምሳሌ: 0911223344)</i>",
             reply_markup=welcome_start_keyboard,
             parse_mode="HTML"
         )
@@ -541,21 +541,15 @@ async def show_main_menu(message_or_callback, user):
     
     if isinstance(message_or_callback, types.CallbackQuery):
         try:
-            await message_or_callback.message.edit_media(
-                types.InputMediaPhoto(media=WELCOME_PHOTO_URL, caption=welcome_text, parse_mode="HTML"),
-                reply_markup=keyboard
-            )
+            await message_or_callback.message.edit_text(welcome_text, reply_markup=keyboard, parse_mode="HTML")
         except Exception:
-            try:
-                await message_or_callback.message.edit_text(welcome_text, reply_markup=keyboard, parse_mode="HTML")
-            except Exception:
-                await message_or_callback.message.answer_photo(photo=WELCOME_PHOTO_URL, caption=welcome_text, reply_markup=keyboard, parse_mode="HTML")
+            await message_or_callback.message.answer(welcome_text, reply_markup=keyboard, parse_mode="HTML")
         try:
             await message_or_callback.answer()
         except Exception:
             pass
     else:
-        await message_or_callback.answer_photo(photo=WELCOME_PHOTO_URL, caption=welcome_text, reply_markup=keyboard, parse_mode="HTML")
+        await message_or_callback.answer(welcome_text, reply_markup=keyboard, parse_mode="HTML")
 
 # ----------------- PAYMENT OPTIONS -----------------
 @router.callback_query(F.data == "payment_options")
@@ -574,7 +568,7 @@ async def payment_options_menu(callback: types.CallbackQuery):
         f"2. <b>በማኑዋል (Manual):</b> ከታች ባሉት የባንክ ቁጥሮች ገንዘብ አስተላልፈው ደረሰኝ (Screenshot) በመላክ በአድሚን ያስረግጣሉ።"
     )
     try:
-        await callback.message.edit_caption(caption=text, reply_markup=keyboard, parse_mode="HTML")
+        await callback.message.edit_text(text=text, reply_markup=keyboard, parse_mode="HTML")
     except Exception:
         await callback.message.answer(text, reply_markup=keyboard, parse_mode="HTML")
     await callback.answer()
@@ -595,7 +589,7 @@ async def manual_payment_start(callback: types.CallbackQuery, state: FSMContext)
         [InlineKeyboardButton(text="⬅️ ተመለስ / Back", callback_data="payment_options")]
     ])
     try:
-        await callback.message.edit_caption(caption=text, reply_markup=keyboard, parse_mode="HTML")
+        await callback.message.edit_text(text=text, reply_markup=keyboard, parse_mode="HTML")
     except Exception:
         await callback.message.answer(text, reply_markup=keyboard, parse_mode="HTML")
     await callback.answer()
@@ -785,7 +779,7 @@ async def lomi_market_menu(callback: types.CallbackQuery):
         [InlineKeyboardButton(text="🔙 ወደ ዋናው ምናሌ", callback_data="main_menu")]
     ])
     try:
-        await callback.message.edit_caption(caption=text, reply_markup=keyboard, parse_mode="HTML")
+        await callback.message.edit_text(text=text, reply_markup=keyboard, parse_mode="HTML")
     except Exception:
         await callback.message.answer(text, reply_markup=keyboard, parse_mode="HTML")
     await callback.answer()
@@ -806,7 +800,7 @@ async def buy_coin_start(callback: types.CallbackQuery, state: FSMContext):
         [InlineKeyboardButton(text="⬅️ Back", callback_data="lomi_market")]
     ])
     try:
-        await callback.message.edit_caption(caption=text, reply_markup=keyboard, parse_mode="HTML")
+        await callback.message.edit_text(text=text, reply_markup=keyboard, parse_mode="HTML")
     except Exception:
         await callback.message.answer(text, reply_markup=keyboard, parse_mode="HTML")
     await callback.answer()
@@ -866,7 +860,7 @@ async def sell_coin_start(callback: types.CallbackQuery, state: FSMContext):
         [InlineKeyboardButton(text="⬅️ Back", callback_data="lomi_market")]
     ])
     try:
-        await callback.message.edit_caption(caption=text, reply_markup=keyboard, parse_mode="HTML")
+        await callback.message.edit_text(text=text, reply_markup=keyboard, parse_mode="HTML")
     except Exception:
         await callback.message.answer(text, reply_markup=keyboard, parse_mode="HTML")
     await callback.answer()
@@ -953,8 +947,8 @@ async def pay_chapa_package(callback: types.CallbackQuery):
                     [InlineKeyboardButton(text="🔙 ወደ ዋናው ምናሌ", callback_data="main_menu")]
                 ])
                 try:
-                    await callback.message.edit_caption(
-                        caption=f"💳 <b>የፓኬጅ ክፍያ ማገናኛ ተዘጋጅቷል! (መጠን: {package_price} ETB)</b>",
+                    await callback.message.edit_text(
+                        text=f"💳 <b>የፓኬጅ ክፍያ ማገናኛ ተዘጋጅቷል! (መጠን: {package_price} ETB)</b>",
                         reply_markup=keyboard, parse_mode="HTML"
                     )
                 except Exception:
@@ -1010,7 +1004,7 @@ async def customer_support_handler(callback: types.CallbackQuery):
         [InlineKeyboardButton(text="🔙 ወደ ዋናው ምናሌ", callback_data="main_menu")]
     ])
     try:
-        await callback.message.edit_caption(caption=text, reply_markup=keyboard, parse_mode="HTML")
+        await callback.message.edit_text(text=text, reply_markup=keyboard, parse_mode="HTML")
     except Exception:
         await callback.message.answer(text, reply_markup=keyboard, parse_mode="HTML")
     await callback.answer()
@@ -1032,7 +1026,7 @@ async def digital_services_menu(callback: types.CallbackQuery):
         [InlineKeyboardButton(text="🏠 ዋና ገጽ", callback_data="main_menu")]
     ])
     try:
-        await callback.message.edit_caption(caption=text, reply_markup=keyboard, parse_mode="HTML")
+        await callback.message.edit_text(text=text, reply_markup=keyboard, parse_mode="HTML")
     except Exception:
         await callback.message.answer(text, reply_markup=keyboard, parse_mode="HTML")
     await callback.answer()
@@ -1049,8 +1043,8 @@ async def service_order_prompt(callback: types.CallbackQuery, state: FSMContext)
     await state.set_state(ServiceOrderStates.waiting_for_detail)
     
     keyboard = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Back", callback_data="digital_services")]])
-    await callback.message.edit_caption(
-        caption=f"🛒 <b>{s_title}</b>\n\nእባክዎ ለዚህ አገልግሎት የሚፈልጉትን ዝርዝር (ስልክ ቁጥር ወይም ሊንክ) ጻፉልኝ፦",
+    await callback.message.edit_text(
+        text=f"🛒 <b>{s_title}</b>\n\nእባክዎ ለዚህ አገልግሎት የሚፈልጉትን ዝርዝር (ስልክ ቁጥር ወይም ሊንክ) ጻፉልኝ፦",
         reply_markup=keyboard, parse_mode="HTML"
     )
     await callback.answer()
@@ -1105,14 +1099,14 @@ async def wallet_deposit_start(callback: types.CallbackQuery, state: FSMContext)
         [InlineKeyboardButton(text="🏦 በባንክ ደረሰኝ (Manual Deposit)", callback_data="deposit_manual")],
         [InlineKeyboardButton(text="⬅️ Back", callback_data="main_menu")]
     ])
-    await callback.message.edit_caption(caption="📥 <b>ገንዘብ ወደ ዋሌት ጫን (Deposit Options)</b>\n\nገንዘብ መሙላት የሚፈልጉበትን መንገድ ይምረጡ፦", reply_markup=keyboard, parse_mode="HTML")
+    await callback.message.edit_text(text="📥 <b>ገንዘብ ወደ ዋሌት ጫን (Deposit Options)</b>\n\nገንዘብ መሙላት የሚፈልጉበትን መንገድ ይምረጡ፦", reply_markup=keyboard, parse_mode="HTML")
     await callback.answer()
 
 @router.callback_query(F.data == "deposit_chapa")
 async def deposit_chapa_start(callback: types.CallbackQuery, state: FSMContext):
     await state.set_state(DepositStates.waiting_for_amount)
     keyboard = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Back", callback_data="wallet_deposit")]])
-    await callback.message.edit_caption(caption="📥 <b>በቻፓ ገንዘብ ማከማቸት</b>\n\nማስገባት የሚፈልጉትን የብር መጠን (ETB) ጻፉልኝ፦", reply_markup=keyboard, parse_mode="HTML")
+    await callback.message.edit_text(text="📥 <b>በቻፓ ገንዘብ ማከማቸት</b>\n\nማስገባት የሚፈልጉትን የብር መጠን (ETB) ጻፉልኝ፦", reply_markup=keyboard, parse_mode="HTML")
     await callback.answer()
 
 @router.callback_query(F.data == "deposit_manual")
@@ -1120,7 +1114,7 @@ async def deposit_manual_start(callback: types.CallbackQuery, state: FSMContext)
     await state.set_state(DepositStates.waiting_for_amount)
     await state.update_data(is_manual_deposit=True)
     keyboard = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Back", callback_data="wallet_deposit")]])
-    await callback.message.edit_caption(caption="📥 <b>በባንክ ዴፖዚት ማድረግ</b>\n\nወደ ባንክ አካውንታችን ያስተላለፉትን **የብር መጠን (ETB)** ጻፉልኝ፦", reply_markup=keyboard, parse_mode="HTML")
+    await callback.message.edit_text(text="📥 <b>በባንክ ዴፖዚት ማድረግ</b>\n\nወደ ባንክ አካውንታችን ያስተላለፉትን **የብር መጠን (ETB)** ጻፉልኝ፦", reply_markup=keyboard, parse_mode="HTML")
     await callback.answer()
 
 @router.message(DepositStates.waiting_for_amount)
@@ -1213,7 +1207,7 @@ async def p2p_transfer_start(callback: types.CallbackQuery, state: FSMContext):
         return
     await state.set_state(P2PTransferStates.waiting_for_recipient)
     keyboard = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Back", callback_data="my_account")]])
-    await callback.message.edit_caption(caption="💸 <b>ገንዘብ ለሌላ ተጠቃሚ ማስተላለፍ (P2P)</b>\n\nየተቀባዩን **ዋሌት ID** (ምሳሌ: `W12345`) ጻፉልኝ፦", reply_markup=keyboard, parse_mode="HTML")
+    await callback.message.edit_text(text="💸 <b>ገንዘብ ለሌላ ተጠቃሚ ማስተላለፍ (P2P)</b>\n\nየተቀባዩን **ዋሌት ID** (ምሳሌ: `W12345`) ጻፉልኝ፦", reply_markup=keyboard, parse_mode="HTML")
     await callback.answer()
 
 @router.message(P2PTransferStates.waiting_for_recipient)
@@ -1266,7 +1260,7 @@ async def request_withdraw_start(callback: types.CallbackQuery, state: FSMContex
         return
     await state.set_state(WithdrawStates.waiting_for_amount)
     keyboard = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="⬅️ Back", callback_data="my_account")]])
-    await callback.message.edit_caption(caption=f"💸 <b>ገንዘብ ማውጣት</b>\nያለዎት: {user[7]} ETB\nማውጣት የሚፈልጉትን መጠን ጻፉልኝ፦", reply_markup=keyboard, parse_mode="HTML")
+    await callback.message.edit_text(text=f"💸 <b>ገንዘብ ማውጣት</b>\nያለዎት: {user[7]} ETB\nማውጣት የሚፈልጉትን መጠን ጻፉልኝ፦", reply_markup=keyboard, parse_mode="HTML")
     await callback.answer()
 
 @router.message(WithdrawStates.waiting_for_amount)
@@ -1329,14 +1323,14 @@ async def approve_withdrawal(callback: types.CallbackQuery):
 @router.callback_query(F.data == "bot_about")
 async def bot_about_callback(callback: types.CallbackQuery):
     keyboard = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🏠 ዋና ገጽ", callback_data="main_menu")]])
-    await callback.message.edit_caption(caption="ℹ️ <b>ስለ 50 ሎሚ</b>\nበጋራ እንበለጽጋለን! ባይነሪ ማትሪክስ እና ሎሚ ኮይን ግብይት መድረክ።", reply_markup=keyboard, parse_mode="HTML")
+    await callback.message.edit_text(text="ℹ️ <b>ስለ 50 ሎሚ</b>\nበጋራ እንበለጽጋለን! ባይነሪ ማትሪክስ እና ሎሚ ኮይን ግብይት መድረክ።", reply_markup=keyboard, parse_mode="HTML")
     await callback.answer()
 
 @router.callback_query(F.data == "tutorial_video")
 async def tutorial_video_callback(callback: types.CallbackQuery):
     t_link = get_setting('tutorial_link', str) or TUTORIAL_VIDEO_URL
     keyboard = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🏠 ዋና ገጽ", callback_data="main_menu")]])
-    await callback.message.edit_caption(caption=f"🎬 <b>መመሪያ</b>\n<a href='{t_link}'>ቪዲዮውን ለማየት እዚህ ይጫኑ</a>", reply_markup=keyboard, parse_mode="HTML")
+    await callback.message.edit_text(text=f"🎬 <b>መመሪያ</b>\n<a href='{t_link}'>ቪዲዮውን ለማየት እዚህ ይጫኑ</a>", reply_markup=keyboard, parse_mode="HTML")
     await callback.answer()
 
 # ----------------- WALLET & ACCOUNT -----------------
@@ -1387,7 +1381,7 @@ async def my_account_callback(callback: types.CallbackQuery):
         f"🔗 <b>የእርስዎ ሪፈራል ሊንክ:</b>\n<code>{ref_link}</code>"
     )
     try:
-        await callback.message.edit_caption(caption=text, reply_markup=keyboard, parse_mode="HTML")
+        await callback.message.edit_text(text=text, reply_markup=keyboard, parse_mode="HTML")
     except Exception:
         await callback.message.answer(text, reply_markup=keyboard, parse_mode="HTML")
     await callback.answer()
@@ -1415,7 +1409,7 @@ async def admin_panel_callback(callback: types.CallbackQuery):
         [InlineKeyboardButton(text="🏠 ወደ ዋናው ገጽ", callback_data="main_menu")]
     ])
     try:
-        await callback.message.edit_caption(caption=text, reply_markup=keyboard, parse_mode="HTML")
+        await callback.message.edit_text(text=text, reply_markup=keyboard, parse_mode="HTML")
     except Exception:
         await callback.message.answer(text, reply_markup=keyboard, parse_mode="HTML")
     await callback.answer()
