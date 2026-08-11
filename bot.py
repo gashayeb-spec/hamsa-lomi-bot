@@ -1,4 +1,3 @@
-import os
 import logging
 import random
 import re
@@ -13,13 +12,13 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 # ሎጊንግ ማስተካከል
 logging.basicConfig(level=logging.INFO)
 
-# ================= ENVIRONMENT VARIABLES (ሚስጥራዊ መረጃዎች ከሰርቨር እንዲነበቡ) =================
-API_TOKEN = os.getenv("API_TOKEN")
-ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
-CHAPA_PUBLIC_KEY = os.getenv("CHAPA_PUBLIC_KEY")
-CHAPA_SECRET_KEY = os.getenv("CHAPA_SECRET_KEY")
-SUPPORT_PHONE_NUMBER = os.getenv("SUPPORT_PHONE_NUMBER", "+251900000000")
-# ======================================================================================
+# ================= CONFIGURATIONS (ቀጥተኛ ሚስጥራዊ መረጃዎች) =================
+API_TOKEN = "8543715567:AAGXh421T4RbiVtoMzaEEefP0Zug7TGaJIQ"
+ADMIN_ID = 5351353727
+CHAPA_PUBLIC_KEY = "CHAPUBK-hLBEJPiKDIRpfBCqTczyE1OsnrrK3Zhj"
+CHAPA_SECRET_KEY = "CHASECK-SncZN81Mx80yQcPjXJwRXDF6MdgchtNV"
+SUPPORT_PHONE_NUMBER = "+251900000000"
+# ======================================================================
 
 bot = Bot(token=API_TOKEN)
 storage = MemoryStorage()
