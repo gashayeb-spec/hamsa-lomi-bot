@@ -1,3 +1,4 @@
+import os
 import logging
 import random
 import re
@@ -12,13 +13,13 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 # ሎጊንግ ማስተካከል
 logging.basicConfig(level=logging.INFO)
 
-# ================= CONFIGURATIONS (ከእርስዎ ምስል የተወሰዱ) =================
-API_TOKEN = "8543715567:AAGXh421T4RbiVtoMzaEEefP0Zug7TGaJIQ"
-ADMIN_ID = 5351353727
-CHAPA_PUBLIC_KEY = "CHAPUBK-hLBEJPiKDIRpfBCqTczyE1OsnrrK3Zhj"
-CHAPA_SECRET_KEY = "CHASECK-SncZN81Mx80yQcPjXJwRXDF6MdgchtNV"
-SUPPORT_PHONE_NUMBER = "+251900000000"  # ማስተካከል ከፈለጉ መቀየር ይችላሉ
-# ======================================================================
+# ================= ENVIRONMENT VARIABLES (ሚስጥራዊ መረጃዎች ከሰርቨር እንዲነበቡ) =================
+API_TOKEN = os.getenv("API_TOKEN")
+ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
+CHAPA_PUBLIC_KEY = os.getenv("CHAPA_PUBLIC_KEY")
+CHAPA_SECRET_KEY = os.getenv("CHAPA_SECRET_KEY")
+SUPPORT_PHONE_NUMBER = os.getenv("SUPPORT_PHONE_NUMBER", "+251900000000")
+# ======================================================================================
 
 bot = Bot(token=API_TOKEN)
 storage = MemoryStorage()
@@ -227,7 +228,7 @@ async def process_chapa_payment(callback: types.CallbackQuery):
     "last_name": last_name,
     "tx_ref": tx_ref,
     "callback_url": f"https://yourdomain.com/api/chapa-webhook",
-    "return_url": "https://t.me/8543715567_bot",
+    "return_url": "https://t.me/bot",
   }
 
   try:
