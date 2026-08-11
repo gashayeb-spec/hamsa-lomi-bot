@@ -16,7 +16,7 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 logging.basicConfig(level=logging.INFO)
 
 # ================= CONFIGURATIONS (ቀጥተኛ ሚስጥራዊ መረጃዎች) =================
-API_TOKEN = "8543715567:AAGXh421T4RbiVtoMzaEEefP0Zug7TGaJIQ"
+API_TOKEN = "8975591959:AAF5bbLhbAv5Ql6uqt1Xs0Z5UZUC9t1e2Wk"
 ADMIN_ID = 5351353727
 CHAPA_PUBLIC_KEY = "CHAPUBK-hLBEJPiKDIRpfBCqTczyE1OsnrrK3Zhj"
 CHAPA_SECRET_KEY = "CHASECK-SncZN81Mx80yQcPjXJwRXDF6MdgchtNV"
