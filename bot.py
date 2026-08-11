@@ -27,6 +27,10 @@ bot = Bot(token=API_TOKEN)
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 
+# 临时 ዴታቤዝ (Memory Database for Users and Settings)
+registered_users_db = {}
+coin_rate_db = {"coin_price": 10} # ነባር የኮይን ዋጋ (10 ብር)
+
 
 # የምዝገባ እርምጃዎች (Single-Flow Registration States with Back Navigation)
 class RegistrationStates(StatesGroup):
@@ -41,6 +45,10 @@ class RegistrationStates(StatesGroup):
   waiting_for_password = State()
   confirm_password = State()
   final_review = State()
+
+class AdminStates(StatesGroup):
+  waiting_for_broadcast = State()
+  waiting_for_new_coin_price = State()
 
 
 # ትክክለኛ የኢሜይል ማረጋገጫ
@@ -72,6 +80,12 @@ def is_strong_password(password: str) -> bool:
 @dp.message(F.text == "/start")
 async def cmd_start(message: types.Message, state: FSMContext):
   await state.clear()
+  user_id = message.from_user.id
+  
+  if user_id in registered_users_db and registered_users_db[user_id].get("is_blocked"):
+    await message.answer("❌ አካውንትዎ በአድሚን ታግዷል።")
+    return
+
   user_name = message.from_user.full_name
 
   welcome_text = (
@@ -474,7 +488,57 @@ async def back_to_conf_step(callback: types.CallbackQuery, state: FSMContext):
     F.data == "submit_reg", RegistrationStates.final_review
 )
 async def process_final_submit(callback: types.CallbackQuery, state: FSMContext):
+  data = await state.get_data()
+  user_id = callback.from_user.id
+  
+  # መረጃዎችን በጊዜያዊ ዴታቤዝ ውስጥ ማስቀመጥ (ለአድሚን ማረጋገጫ)
+  registered_users_db[user_id] = {
+      "full_name": data.get("full_name"),
+      "phone_number": data.get("phone_number"),
+      "bank_account": data.get("bank_account"),
+      "email": data.get("email"),
+      "id_front": data.get("id_front"),
+      "id_back": data.get("id_back"),
+      "face_photo": data.get("face_photo"),
+      "status": "pending", # pending, verified, rejected
+      "is_blocked": False
+  }
+
   await state.clear()
+
+  # ለአድሚኑ የምዝገባ ማሳወቂያ እና የቁጥጥር ቁልፎች (Verify, Cancel, Block) መላክ
+  admin_keyboard = InlineKeyboardMarkup(
+      inline_keyboard=[
+          [
+              InlineKeyboardButton(text="✅ አረጋግጥ (Verify)", callback_data=f"admin_verify_{user_id}"),
+              InlineKeyboardButton(text="❌ ሰርዝ (Cancel)", callback_data=f"admin_cancel_{user_id}"),
+          ],
+          [
+              InlineKeyboardButton(text="🚫 አግድ (Block User)", callback_data=f"admin_block_{user_id}")
+          ]
+      ]
+  )
+
+  admin_msg = (
+      f"🔔 **አዲስ የተጠቃሚ ምዝገባ መጣ!**\n\n"
+      f"• መለያ ቁጥር (ID): `{user_id}`\n"
+      f"• ስም፦ {data.get('full_name')}\n"
+      f"• ስልክ፦ {data.get('phone_number')}\n"
+      f"• ባንክ፦ {data.get('bank_account')}\n"
+      f"• ኢሜይል፦ {data.get('email')}"
+  )
+  
+  try:
+    await bot.send_message(ADMIN_ID, admin_msg, reply_markup=admin_keyboard, parse_mode="Markdown")
+    # የመታወቂያ ፎቶዎችን ለአድሚን መላክ
+    if data.get("id_front"):
+      await bot.send_photo(ADMIN_ID, data.get("id_front"), caption=f"🪪 የ {data.get('full_name')} መታወቂያ (ፊት)")
+    if data.get("id_back"):
+      await bot.send_photo(ADMIN_ID, data.get("id_back"), caption=f"🪪 የ {data.get('full_name')} መታወቂያ (ኋላ)")
+    if data.get("face_photo"):
+      await bot.send_photo(ADMIN_ID, data.get("face_photo"), caption=f"📸 የ {data.get('full_name')} ፊት ፎቶ (Selfie)")
+  except Exception as e:
+    logging.error(f"Error sending to admin: {e}")
 
   main_menu = types.ReplyKeyboardMarkup(
       keyboard=[
@@ -585,31 +649,34 @@ async def process_chapa_payment(callback: types.CallbackQuery):
 
 @dp.message(F.text == "ብር ወደ ኮይን ቀይር")
 async def convert_to_coin(message: types.Message):
+  price = coin_rate_db["coin_price"]
   keyboard = InlineKeyboardMarkup(
       inline_keyboard=[
           [
               InlineKeyboardButton(
-                  text="10 ብር = 10 ኮይን ቀይር", callback_data="convert_10"
+                  text=f"{price} ብር = 1 ኮይን ቀይር", callback_data="convert_1"
               )
           ],
           [
               InlineKeyboardButton(
-                  text="50 ብር = 50 ኮይን ቀይር", callback_data="convert_50"
+                  text=f"{price * 5} ብር = 5 ኮይን ቀይር", callback_data="convert_5"
               )
           ],
       ]
   )
   await message.answer(
-      "ኢትዮ ብር (ETB) ወደ ቦቱ ልዩ ኮይን በመቀየር ሎተሪ መግዛት ይችላሉ፦",
+      f"ኢትዮ ብር (ETB) ወደ ቦቱ ልዩ ኮይን በመቀየር ሎተሪ መግዛት ይችላሉ፦\nየአሁኑ የኮይን ዋጋ፦ **{price} ብር**",
       reply_markup=keyboard,
+      parse_mode="Markdown"
   )
 
 
 @dp.callback_query(F.data.startswith("convert_"))
 async def process_conversion(callback: types.CallbackQuery):
-  amount = callback.data.split("_")[1]
+  count = callback.data.split("_")[1]
+  price = coin_rate_db["coin_price"] * int(count)
   await callback.message.answer(
-      f"✅ በስኬት {amount} ብር ወደ {amount} ኮይን ተቀይሯል!"
+      f"✅ በስኬት {price} ብር በመክፈል {count} ኮይን አግኝተዋል!"
   )
   await callback.answer()
 
@@ -651,19 +718,182 @@ async def withdraw_money(message: types.Message):
 
 @dp.message(F.text == "ገንዘብ ማስተላለፍ (P2P)")
 async def p2p_transfer_prompt(message: types.Message):
+  user_id = message.from_user.id
+  # ሪኮርድ ለማድረግ ማሳወቂያ ለአድሚን እንዲደርስ ማድረግ እንችላለን
   await message.answer(
       "🔄 ገንዘብ ለሌላ ተጠቃሚ ለማስተላለፍ የውሃ ማስተላለፊያ ትዕዛዝ ይጠቀሙ።"
   )
+  try:
+    await bot.send_message(ADMIN_ID, f"⚠️ ተጠቃሚ `{user_id}` የ P2P የገንዘብ ማስተላለፍ ሂደት ጀምሯል።", parse_mode="Markdown")
+  except:
+    pass
 
 
-# ================= 4. ADMIN COMMANDS =================
+# ================= 4. ENHANCED ADMIN COMMANDS & CONTROLS =================
+
+@dp.message(Command("admin"))
+async def admin_panel(message: types.Message):
+  if message.from_user.id != ADMIN_ID:
+    return
+  
+  keyboard = InlineKeyboardMarkup(
+      inline_keyboard=[
+          [
+              InlineKeyboardButton(text="📊 የተጠቃሚዎች ብዛት (Users)", callback_data="admin_stats"),
+              InlineKeyboardButton(text="📢 ማስታወቂያ ስራ (Announce)", callback_data="admin_broadcast")
+          ],
+          [
+              InlineKeyboardButton(text="🎟 ሎተሪ ድሮ አውጣ (Lottery Draw)", callback_data="admin_lottery_draw"),
+              InlineKeyboardButton(text="🪙 የኮይን ዋጋ ቀይር (Change Price)", callback_data="admin_change_coin_price")
+          ]
+      ]
+  )
+  await message.answer("👑 **የአድሚን መቆጣጠሪያ ፓነል (Admin Panel)**\n\nከታች ያሉትን አማራጮች በመምረጥ ቦቱን መቆጣጠር ይችላሉ፦", reply_markup=keyboard, parse_mode="Markdown")
+
+
+@dp.callback_query(F.data == "admin_stats")
+async def admin_stats_callback(callback: types.CallbackQuery):
+  if callback.from_user.id != ADMIN_ID:
+    return
+  total_users = len(registered_users_db)
+  verified_users = sum(1 for u in registered_users_db.values() if u.get("status") == "verified")
+  
+  await callback.message.answer(
+      f"📊 **የቦቱ አጠቃላይ ስታቲስቲክስ**\n\n"
+      f"• አጠቃላይ የተመዘገቡ ተጠቃሚዎች፦ **{total_users}**\n"
+      f"• የተረጋገጡ (Verified) ተጠቃሚዎች፦ **{verified_users}**\n"
+      f"• የአሁኑ የኮይን ዋጋ፦ **{coin_rate_db['coin_price']} ብር**"
+  )
+  await callback.answer()
+
+
+@dp.callback_query(F.data == "admin_broadcast")
+async def admin_broadcast_callback(callback: types.CallbackQuery, state: FSMContext):
+  if callback.from_user.id != ADMIN_ID:
+    return
+  await callback.message.answer("📢 ለሁሉም ተጠቃሚዎች ማስተላለፍ የሚፈልጉትን መልእክት አሁን ይጻፉልኝ:")
+  await state.set_state(AdminStates.waiting_for_broadcast)
+  await callback.answer()
+
+
+@dp.message(AdminStates.waiting_for_broadcast)
+async def process_broadcast(message: types.Message, state: FSMContext):
+  if message.from_user.id != ADMIN_ID:
+    return
+  text = message.text
+  await state.clear()
+  
+  success_count = 0
+  for uid in registered_users_db.keys():
+    try:
+      await bot.send_message(uid, f"📢 **ማስታወቂያ ከአድሚን፦**\n\n{text}", parse_mode="Markdown")
+      success_count += 1
+    except:
+      pass
+      
+  await message.answer(f"✅ ማስታወቂያው ለ **{success_count}** ተጠቃሚዎች በተሳካ ሁኔታ ተልኳል!")
+
+
+@dp.callback_query(F.data == "admin_lottery_draw")
+async def admin_lottery_draw_callback(callback: types.CallbackQuery):
+  if callback.from_user.id != ADMIN_ID:
+    return
+  if not registered_users_db:
+    await callback.message.answer("❌ እስካሁን የተመዘገበ ተጠቃሚ የለም።")
+    await callback.answer()
+    return
+    
+  winner_id = random.choice(list(registered_users_db.keys()))
+  winner_info = registered_users_db[winner_id]
+  
+  await callback.message.answer(
+      f"🎉 **የሎተሪ ዕጣ አሸናፊ (Lottery Draw Winner)**\n\n"
+      f"• መለያ ቁጥር (ID): `{winner_id}`\n"
+      f"• ስም፦ {winner_info.get('full_name')}\n"
+      f"• ስልክ፦ {winner_info.get('phone_number')}"
+  )
+  
+  try:
+    await bot.send_message(winner_id, "🎉 እንኳን ደስ አለዎት! በዛሬው የሎተሪ ዕጣ አሸናፊ ሆናዋል!")
+  except:
+    pass
+    
+  await callback.answer()
+
+
+@dp.callback_query(F.data == "admin_change_coin_price")
+async def admin_change_coin_price_callback(callback: types.CallbackQuery, state: FSMContext):
+  if callback.from_user.id != ADMIN_ID:
+    return
+  await callback.message.answer(f"🪙 አዲሱን የኮይን ዋጋ በቁጥር ብቻ ይጻፉ (አሁን ያለው፦ {coin_rate_db['coin_price']} ብር):")
+  await state.set_state(AdminStates.waiting_for_new_coin_price)
+  await callback.answer()
+
+
+@dp.message(AdminStates.waiting_for_new_coin_price)
+async def process_new_coin_price(message: types.Message, state: FSMContext):
+  if message.from_user.id != ADMIN_ID:
+    return
+  try:
+    new_price = int(message.text.strip())
+    coin_rate_db["coin_price"] = new_price
+    await state.clear()
+    await message.answer(f"✅ የኮይን ዋጋ በስኬት ወደ **{new_price} ብር** ተቀይሯል!")
+  except ValueError:
+    await message.answer("❌ እባክዎ ትክክለኛ ቁጥር ብቻ ያስገቡ።")
+
+
+# አድሚን ተጠቃሚን የማረጋገጥ፣ የመሰረዝ ወይም የማግድ እርምጃዎች (Verify, Cancel, Block Callbacks)
+@dp.callback_query(F.data.startswith("admin_verify_"))
+async def admin_verify_user(callback: types.CallbackQuery):
+  if callback.from_user.id != ADMIN_ID:
+    return
+  user_id = int(callback.data.split("_")[2])
+  if user_id in registered_users_db:
+    registered_users_db[user_id]["status"] = "verified"
+    await callback.message.edit_caption(caption=callback.message.caption + "\n\n✅ **[STATUS: VERIFIED]**")
+    try:
+      await bot.send_message(user_id, "🎉 የተላከው መረጃዎ በአድሚን ተረጋግጧል! አሁን ሙሉ አገልግሎቱን መጠቀም ይችላሉ።")
+    except:
+      pass
+  await callback.answer("ተጠቃሚው ተረጋግጧል!")
+
+
+@dp.callback_query(F.data.startswith("admin_cancel_"))
+async def admin_cancel_user(callback: types.CallbackQuery):
+  if callback.from_user.id != ADMIN_ID:
+    return
+  user_id = int(callback.data.split("_")[2])
+  if user_id in registered_users_db:
+    registered_users_db[user_id]["status"] = "rejected"
+    await callback.message.edit_caption(caption=callback.message.caption + "\n\n❌ **[STATUS: REJECTED/CANCELLED]**")
+    try:
+      await bot.send_message(user_id, "❌ ምዝገባዎ በአድሚን ተሰርዟል። እባክዎ እንደገና በትክክል ይመዝገቡ።")
+    except:
+      pass
+  await callback.answer("ምዝገባው ተሰርዟል!")
+
+
+@dp.callback_query(F.data.startswith("admin_block_"))
+async def admin_block_user(callback: types.CallbackQuery):
+  if callback.from_user.id != ADMIN_ID:
+    return
+  user_id = int(callback.data.split("_")[2])
+  if user_id in registered_users_db:
+    registered_users_db[user_id]["is_blocked"] = True
+    await callback.message.edit_caption(caption=callback.message.caption + "\n\n🚫 **[STATUS: BLOCKED]**")
+    try:
+      await bot.send_message(user_id, "🚫 አካውንትዎ በአድሚን ታግዷል።")
+    except:
+      pass
+  await callback.answer("ተጠቃሚው ታግዷል!")
 
 
 @dp.message(Command("users"))
 async def admin_users_count(message: types.Message):
   if message.from_user.id != ADMIN_ID:
     return
-  total_users = 0
+  total_users = len(registered_users_db)
   await message.answer(
       f"📊 **የተጠቃሚዎች መረጃ**\n\nአጠቃላይ የተመዘገቡ ተጠቃሚዎች ብዛት፦ **{total_users}**"
   )
@@ -674,8 +904,7 @@ async def admin_stats(message: types.Message):
   if message.from_user.id != ADMIN_ID:
     return
   await message.answer(
-      "📈 **የቦቱ አጠቃላይ ሁኔታ (Statistics)**\n\n- ንቁ ዋሌቶች፦ 0\n- አጠቃላይ የክፍያ"
-      " ዝውውር፦ 0 ETB"
+      f"📈 **የቦቱ አጠቃላይ ሁኔታ (Statistics)**\n\n- ንቁ ዋሌቶች፦ {len(registered_users_db)}\n- አጠቃላይ የክፍያ ዝውውር፦ 0 ETB"
   )
 
 
@@ -692,8 +921,17 @@ async def admin_announce(message: types.Message):
     )
     return
   announcement_text = command_parts[1]
+  
+  success_count = 0
+  for uid in registered_users_db.keys():
+    try:
+      await bot.send_message(uid, f"📢 **ማስታወቂያ፦**\n\n{announcement_text}", parse_mode="Markdown")
+      success_count += 1
+    except:
+      pass
+
   await message.answer(
-      f"✅ ማስታወቂያው ለተጠቃሚዎች በስኬት ተልኳል፦\n\n{announcement_text}"
+      f"✅ ማስታወቂያው ለ **{success_count}** ተጠቃሚዎች በስኬት ተልኳል!"
   )
 
 
@@ -706,7 +944,7 @@ async def start_web_server():
   app = web.Application()
   app.router.add_get("/", handle_ping)
   runner = web.AppRunner(app)
-  await runner.setup()
+  app_runner = await runner.setup()
   port = int(os.environ.get("PORT", 10000))
   site = web.TCPSite(runner, "0.0.0.0", port)
   await site.start()
