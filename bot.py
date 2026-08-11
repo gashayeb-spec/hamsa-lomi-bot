@@ -27,12 +27,12 @@ bot = Bot(token=API_TOKEN)
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 
-# 临时 ዴታቤዝ (Memory Database for Users and Settings)
+# ዴታቤዝ (Memory Database for Users and Settings)
 registered_users_db = {}
-coin_rate_db = {"coin_price": 10} # ነባር የኮይን ዋጋ (10 ብር)
+coin_rate_db = {"coin_price": 10}
 
 
-# የምዝገባ እርምጃዎች (Single-Flow Registration States with Back Navigation)
+# የምዝገባ እርምጃዎች (Single-Flow Registration States)
 class RegistrationStates(StatesGroup):
   waiting_for_language = State()
   waiting_for_name = State()
@@ -82,12 +82,33 @@ async def cmd_start(message: types.Message, state: FSMContext):
   await state.clear()
   user_id = message.from_user.id
   
-  if user_id in registered_users_db and registered_users_db[user_id].get("is_blocked"):
-    await message.answer("❌ አካውንትዎ በአድሚን ታግዷል።")
-    return
+  if user_id in registered_users_db:
+    user_data = registered_users_db[user_id]
+    if user_data.get("is_blocked"):
+      await message.answer("❌ አካውንትዎ በአድሚን ታግዷል።")
+      return
+    if user_data.get("status") == "pending":
+      await message.answer("⏳ ምዝገባዎ በአድሚን ማረጋገጫ (Pending Verification) ላይ ይገኛል። እባክዎ አድሚኑ እስኪያጸድቀው ይጠብቁ።")
+      return
+    if user_data.get("status") == "verified":
+      main_menu = types.ReplyKeyboardMarkup(
+          keyboard=[
+              [
+                  types.KeyboardButton(text="ገንዘብ ማስገባት (Deposit)"),
+                  types.KeyboardButton(text="ብር ወደ ኮይን ቀይር"),
+              ],
+              [
+                  types.KeyboardButton(text="ሎተሪ መግዛት"),
+                  types.KeyboardButton(text="ኮይን ወደ ብር ቀይር (Withdraw)"),
+              ],
+              [types.KeyboardButton(text="ገንዘብ ማስተላለፍ (P2P)")],
+          ],
+          resize_keyboard=True,
+      )
+      await message.answer("✅ አካውንትዎ ቀደም ሲል ጸድቋል! ዋናውን ሜኑ መጠቀም ይችላሉ፦", reply_markup=main_menu)
+      return
 
   user_name = message.from_user.full_name
-
   welcome_text = (
       f"🌟 ሰላም **{user_name}**! ወደ ትክክለኛው የባንክ እና የሎተሪ አገልግሎት በደህና"
       " መጡ።\n\n"
@@ -104,7 +125,6 @@ async def cmd_start(message: types.Message, state: FSMContext):
           [InlineKeyboardButton(text="🚀 ጀምር / Start", callback_data="welcome_start")]
       ]
   )
-
   await message.answer(welcome_text, reply_markup=keyboard, parse_mode="Markdown")
 
 
@@ -118,7 +138,6 @@ async def process_welcome_start(callback: types.CallbackQuery, state: FSMContext
           ]
       ]
   )
-
   await callback.message.edit_text(
       "🌐 እባክዎ የሚፈልጉትን ቋንቋ ይምረጡ፦\nPlease choose your preferred language:",
       reply_markup=lang_keyboard,
@@ -138,13 +157,11 @@ async def process_language_selection(callback: types.CallbackQuery, state: FSMCo
       if lang == "am"
       else "🇬🇧 English selected.\n\nPlease enter your full name to start registration:"
   )
-
   back_kb = InlineKeyboardMarkup(
       inline_keyboard=[
           [InlineKeyboardButton(text="⬅️ ተመለስ (Back)", callback_data="back_to_lang")]
       ]
   )
-
   await callback.message.edit_text(text, reply_markup=back_kb)
   await state.set_state(RegistrationStates.waiting_for_name)
   await callback.answer()
@@ -171,15 +188,13 @@ async def back_to_language(callback: types.CallbackQuery, state: FSMContext):
 @dp.message(RegistrationStates.waiting_for_name)
 async def process_name(message: types.Message, state: FSMContext):
   await state.update_data(full_name=message.text)
-  
   keyboard = InlineKeyboardMarkup(
       inline_keyboard=[
           [InlineKeyboardButton(text="⬅️ ተመለስ (Back)", callback_data="back_to_name")]
       ]
   )
   await message.answer(
-      "ስልክ ቁጥርዎን ያስገቡ (ለምሳሌ፦ 09xxxxxxxx ወይም 07xxxxxxxx ወይም በ +251"
-      " ይጀምሩ)፦",
+      "ስልክ ቁጥርዎን ያስገቡ (ለምሳሌ፦ 09xxxxxxxx ወይም 07xxxxxxxx ወይም በ +251 ይጀምሩ)፦",
       reply_markup=keyboard,
   )
   await state.set_state(RegistrationStates.waiting_for_phone)
@@ -246,9 +261,9 @@ async def process_bank(message: types.Message, state: FSMContext):
       ]
   )
   await message.answer(
-      "ቲኬትዎ/መታወቂያዎ ትክክለኛ መሆኑን ለማረጋገጥ፦\n\n🪪 **1. የብሔራዊ መታወቂያ (National ID)"
-      " ወይም ፓስፖርት የፊት ገጽ (Front Photo)** ፎቶ ይላኩ:",
+      "🪪 **የ KYC ማረጋገጫ (Identity Verification)**\n\nእባክዎ ትክክለኛ **የኢትዮጵያ ብሔራዊ መታወቂያ (National ID / Fayda)** ወይም **ፓስፖርት የፊት ገጽ (Front Photo)** ግልጽ ፎቶ ይላኩ:",
       reply_markup=keyboard,
+      parse_mode="Markdown"
   )
   await state.set_state(RegistrationStates.waiting_for_id_front)
 
@@ -278,7 +293,7 @@ async def process_id_front(message: types.Message, state: FSMContext):
       ]
   )
   await message.answer(
-      "🪪 **2. የመታወቂያው የኋላ ገጽ (Back Photo)** ፎቶ ይላኩ:", reply_markup=keyboard
+      "🪪 **የመታወቂያው የኋላ ገጽ (Back Photo)** ግልጽ ፎቶ ይላኩ:", reply_markup=keyboard, parse_mode="Markdown"
   )
   await state.set_state(RegistrationStates.waiting_for_id_back)
 
@@ -291,8 +306,9 @@ async def back_to_id_front_step(callback: types.CallbackQuery, state: FSMContext
       ]
   )
   await callback.message.edit_text(
-      "ቲኬትዎ/መታወቂያዎ ትክክለኛ መሆኑን ለማረጋገጥ፦\n\n🪪 **1. የብሔራዊ መታወቂያ (National ID) ወይም ፓስፖርት የፊት ገጽ (Front Photo)** ፎቶ ይላኩ:",
+      "🪪 **የ KYC ማረጋገጫ (Identity Verification)**\n\nእባክዎ ትክክለኛ **የኢትዮጵያ ብሔራዊ መታወቂያ (National ID / Fayda)** ወይም **ፓስፖርት የፊት ገጽ (Front Photo)** ግልጽ ፎቶ ይላኩ:",
       reply_markup=keyboard,
+      parse_mode="Markdown"
   )
   await state.set_state(RegistrationStates.waiting_for_id_front)
   await callback.answer()
@@ -309,8 +325,9 @@ async def process_id_back(message: types.Message, state: FSMContext):
       ]
   )
   await message.answer(
-      "📸 አሁን ደግሞ ፊትዎ ከሰነዱ ጋር በግልጽ የሚታይበትን **የራስዎን ፎቶ (Face Photo/Selfie)** ይላኩ:",
+      "📸 አሁን ደግሞ ከላይ ያስገቡት መታወቂያ ባለቤት እርስዎ መሆንዎን ለማረጋገጥ ፊትዎ በግልጽ የሚታይበትን **የራስዎን ፎቶ (Face ID / Selfie)** ይላኩ:",
       reply_markup=keyboard,
+      parse_mode="Markdown"
   )
   await state.set_state(RegistrationStates.waiting_for_face_photo)
 
@@ -323,8 +340,9 @@ async def back_to_id_back_step(callback: types.CallbackQuery, state: FSMContext)
       ]
   )
   await callback.message.edit_text(
-      "🪪 **2. የመታወቂያው የኋላ ገጽ (Back Photo)** ፎቶ ይላኩ:",
+      "🪪 **የመታወቂያው የኋላ ገጽ (Back Photo)** ግልጽ ፎቶ ይላኩ:",
       reply_markup=keyboard,
+      parse_mode="Markdown"
   )
   await state.set_state(RegistrationStates.waiting_for_id_back)
   await callback.answer()
@@ -352,8 +370,9 @@ async def back_to_face_step(callback: types.CallbackQuery, state: FSMContext):
       ]
   )
   await callback.message.edit_text(
-      "📸 አሁን ደግሞ ፊትዎ ከሰነዱ ጋር በግልጽ የሚታይበትን **የራስዎን ፎቶ (Face Photo)** ይላኩ:",
+      "📸 አሁን ደግሞ ከላይ ያስገቡት መታወቂያ ባለቤት እርስዎ መሆንዎን ለማረጋገጥ ፊትዎ በግልጽ የሚታይበትን **የራስዎን ፎቶ (Face ID / Selfie)** ይላኩ:",
       reply_markup=keyboard,
+      parse_mode="Markdown"
   )
   await state.set_state(RegistrationStates.waiting_for_face_photo)
   await callback.answer()
@@ -443,28 +462,25 @@ async def process_confirm_password(message: types.Message, state: FSMContext):
     await state.set_state(RegistrationStates.waiting_for_password)
     return
 
-  # ሁሉም መረጃዎች ተሞልተዋል - የማጠቃለያ ፎርም (Summary Review)
   summary_text = (
       "📋 **የመረጃዎ ማጠቃለያ (Registration Summary)**\n\n"
       f"• ሙሉ ስም፦ {data.get('full_name')}\n"
       f"• ስልክ ቁጥር፦ {data.get('phone_number')}\n"
       f"• የባንክ አካውንት፦ {data.get('bank_account')}\n"
       f"• ኢሜይል፦ {data.get('email')}\n\n"
-      "እባክዎ መረጃዎ ትክክል መሆኑን ያረጋግጡ። መመዝገብ ከፈለጉ ከታች ያለውን **'አረጋግጥ እና"
-      " ላክ (Submit)'** ቁልፍ ይጫኑ!"
+      "እባክዎ መረጃዎ ትክክል መሆኑን በደንብ ያረጋግጡ። መረጃዎ ትክክል ከሆነ ከታች ያለውን **'አረጋግጥ እና ለአድሚን ላክ (Submit)'** ቁልፍ በመጫን ለአድሚን ማረጋገጫ ይላኩ!"
   )
 
   keyboard = InlineKeyboardMarkup(
       inline_keyboard=[
           [
               InlineKeyboardButton(
-                  text="✅ አረጋግጥ እና ላክ (Submit)", callback_data="submit_reg"
+                  text="✅ አረጋግጥ እና ለአድሚን ላክ (Submit)", callback_data="submit_reg"
               )
           ],
           [InlineKeyboardButton(text="⬅️ ተመለስ (Back)", callback_data="back_to_conf")]
       ]
   )
-
   await message.answer(summary_text, reply_markup=keyboard, parse_mode="Markdown")
   await state.set_state(RegistrationStates.final_review)
 
@@ -491,7 +507,7 @@ async def process_final_submit(callback: types.CallbackQuery, state: FSMContext)
   data = await state.get_data()
   user_id = callback.from_user.id
   
-  # መረጃዎችን በጊዜያዊ ዴታቤዝ ውስጥ ማስቀመጥ (ለአድሚን ማረጋገጫ)
+  # መረጃዎችን በ Pending (በጥበቃ) ሁኔታ ማስቀመጥ (አድሚን እስኪያጸድቅ ዋሌት አይከፈትም)
   registered_users_db[user_id] = {
       "full_name": data.get("full_name"),
       "phone_number": data.get("phone_number"),
@@ -500,18 +516,18 @@ async def process_final_submit(callback: types.CallbackQuery, state: FSMContext)
       "id_front": data.get("id_front"),
       "id_back": data.get("id_back"),
       "face_photo": data.get("face_photo"),
-      "status": "pending", # pending, verified, rejected
+      "status": "pending", 
       "is_blocked": False
   }
 
   await state.clear()
 
-  # ለአድሚኑ የምዝገባ ማሳወቂያ እና የቁጥጥር ቁልፎች (Verify, Cancel, Block) መላክ
+  # ለአድሚኑ ማሳወቂያ እና የ KYC ፎቶዎችን መላክ
   admin_keyboard = InlineKeyboardMarkup(
       inline_keyboard=[
           [
-              InlineKeyboardButton(text="✅ አረጋግጥ (Verify)", callback_data=f"admin_verify_{user_id}"),
-              InlineKeyboardButton(text="❌ ሰርዝ (Cancel)", callback_data=f"admin_cancel_{user_id}"),
+              InlineKeyboardButton(text="✅ አረጋግጥ / ቬሪፋይ አድርግ", callback_data=f"admin_verify_{user_id}"),
+              InlineKeyboardButton(text="❌ ሰርዝ / ካንሰል", callback_data=f"admin_cancel_{user_id}"),
           ],
           [
               InlineKeyboardButton(text="🚫 አግድ (Block User)", callback_data=f"admin_block_{user_id}")
@@ -520,7 +536,7 @@ async def process_final_submit(callback: types.CallbackQuery, state: FSMContext)
   )
 
   admin_msg = (
-      f"🔔 **አዲስ የተጠቃሚ ምዝገባ መጣ!**\n\n"
+      f"🔔 **አዲስ የ KYC ምዝገባ ማረጋገጫ ይጠብቃል!**\n\n"
       f"• መለያ ቁጥር (ID): `{user_id}`\n"
       f"• ስም፦ {data.get('full_name')}\n"
       f"• ስልክ፦ {data.get('phone_number')}\n"
@@ -530,37 +546,17 @@ async def process_final_submit(callback: types.CallbackQuery, state: FSMContext)
   
   try:
     await bot.send_message(ADMIN_ID, admin_msg, reply_markup=admin_keyboard, parse_mode="Markdown")
-    # የመታወቂያ ፎቶዎችን ለአድሚን መላክ
     if data.get("id_front"):
-      await bot.send_photo(ADMIN_ID, data.get("id_front"), caption=f"🪪 የ {data.get('full_name')} መታወቂያ (ፊት)")
+      await bot.send_photo(ADMIN_ID, data.get("id_front"), caption=f"🪪 የ {data.get('full_name')} ናሽናል አይዲ (ፊት)")
     if data.get("id_back"):
-      await bot.send_photo(ADMIN_ID, data.get("id_back"), caption=f"🪪 የ {data.get('full_name')} መታወቂያ (ኋላ)")
+      await bot.send_photo(ADMIN_ID, data.get("id_back"), caption=f"🪪 የ {data.get('full_name')} ናሽናል አይዲ (ኋላ)")
     if data.get("face_photo"):
-      await bot.send_photo(ADMIN_ID, data.get("face_photo"), caption=f"📸 የ {data.get('full_name')} ፊት ፎቶ (Selfie)")
+      await bot.send_photo(ADMIN_ID, data.get("face_photo"), caption=f"📸 የ {data.get('full_name')} ፊት ፎቶ (Face ID / Selfie)")
   except Exception as e:
     logging.error(f"Error sending to admin: {e}")
 
-  main_menu = types.ReplyKeyboardMarkup(
-      keyboard=[
-          [
-              types.KeyboardButton(text="ገንዘብ ማስገባት (Deposit)"),
-              types.KeyboardButton(text="ብር ወደ ኮይን ቀይር"),
-          ],
-          [
-              types.KeyboardButton(text="ሎተሪ መግዛት"),
-              types.KeyboardButton(text="ኮይን ወደ ብር ቀይር (Withdraw)"),
-          ],
-          [types.KeyboardButton(text="ገንዘብ ማስተላለፍ (P2P)")],
-      ],
-      resize_keyboard=True,
-  )
-
   await callback.message.edit_text(
-      "🎉 ምዝገባዎ በተሳካ ሁኔታ ተጠናቆ ወደ አድሚን ተልኳል! አድሚኑ መረጃዎን አረጋግጦ ሲያጸድቀው"
-      " ሙሉ አገልግሎቱን መጠቀም ይጀምራሉ።"
-  )
-  await callback.message.answer(
-      "ከታች ያሉትን ዋና ዋና አማራጮች መጠቀም ይችላሉ፦", reply_markup=main_menu
+      "⏳ ምዝገባዎ እና የ KYC ሰነዶችዎ ለአድሚን ተልከዋል!\n\nአድሚኑ መረጃዎን እና መታወቂያዎን በጥንቃቄ አረጋግጦ ሲያጸድቀው (Verify ሲያደርገው) የዋሌት አካውንትዎ ይከፈታል እና ማሳወቂያ ይደርስዎታል። እባክዎ በትዕግስት ይጠብቁ።"
   )
   await callback.answer()
 
@@ -570,6 +566,11 @@ async def process_final_submit(callback: types.CallbackQuery, state: FSMContext)
 
 @dp.message(F.text == "ገንዘብ ማስገባት (Deposit)")
 async def cmd_deposit(message: types.Message):
+  user_id = message.from_user.id
+  if user_id not in registered_users_db or registered_users_db[user_id].get("status") != "verified":
+    await message.answer("❌ ዋሌትዎ ገና በአድሚን አልጸደቀም። እባክዎ ምዝገባዎ እስኪረጋገጥ ይጠብቁ።")
+    return
+
   keyboard = InlineKeyboardMarkup(
       inline_keyboard=[
           [
@@ -591,11 +592,13 @@ async def cmd_deposit(message: types.Message):
 @dp.callback_query(F.data == "pay_with_chapa")
 async def process_chapa_payment(callback: types.CallbackQuery):
   user_id = callback.from_user.id
+  user_data = registered_users_db.get(user_id, {})
+  
   amount = "100.00"
   currency = "ETB"
-  email = "user@gmail.com"
-  first_name = callback.from_user.first_name
-  last_name = callback.from_user.last_name or "User"
+  email = user_data.get("email", "user@gmail.com")
+  first_name = user_data.get("full_name", callback.from_user.first_name)
+  last_name = "User"
   tx_ref = f"txn-{user_id}-{int(callback.message.date.timestamp())}"
 
   url = "https://api.chapa.co/v1/transaction/initialize"
@@ -633,12 +636,11 @@ async def process_chapa_payment(callback: types.CallbackQuery):
               "እባክዎ ከታች ባለው ሊንክ በመሄድ ክፍያዎን ይፈጽሙ።", reply_markup=keyboard
           )
         else:
-          await callback.message.answer(
-              "የክፍያ ሊንክ ማመንጨት አልተቻለም። እባክዎ ቆይተው እንደገና ይሞክሩ።"
-          )
+          err_msg = res_data.get("message", "ክፍያ ሊንክ ማመንጨት አልተቻለም። ኪዎቹን (Secret/Public Keys) ያረጋግጡ።")
+          await callback.message.answer(f"❌ ስህተት አጋጥሟል፦ {err_msg}")
   except Exception as e:
     await callback.message.answer(
-        "የኔትወርክ ስህተት አጋጥሟል፣ እባክዎ ቆይተው እንደገና ይሞክሩ።"
+        "የኔትወርክ ወይም የቻፓ ኤፒአይ ኪ (Chapa API Keys) ስህተት አጋጥሟል፣ እባክዎ ኪዎቹን ያረጋግጡ።"
     )
 
   await callback.answer()
@@ -649,6 +651,11 @@ async def process_chapa_payment(callback: types.CallbackQuery):
 
 @dp.message(F.text == "ብር ወደ ኮይን ቀይር")
 async def convert_to_coin(message: types.Message):
+  user_id = message.from_user.id
+  if user_id not in registered_users_db or registered_users_db[user_id].get("status") != "verified":
+    await message.answer("❌ ዋሌትዎ ገና በአድሚን አልጸደቀም።")
+    return
+
   price = coin_rate_db["coin_price"]
   keyboard = InlineKeyboardMarkup(
       inline_keyboard=[
@@ -683,6 +690,11 @@ async def process_conversion(callback: types.CallbackQuery):
 
 @dp.message(F.text == "ሎተሪ መግዛት")
 async def buy_lottery(message: types.Message):
+  user_id = message.from_user.id
+  if user_id not in registered_users_db or registered_users_db[user_id].get("status") != "verified":
+    await message.answer("❌ ዋሌትዎ ገና በአድሚን አልጸደቀም።")
+    return
+
   keyboard = InlineKeyboardMarkup(
       inline_keyboard=[
           [
@@ -709,6 +721,11 @@ async def process_buy_ticket(callback: types.CallbackQuery):
 
 @dp.message(F.text == "ኮይን ወደ ብር ቀይር (Withdraw)")
 async def withdraw_money(message: types.Message):
+  user_id = message.from_user.id
+  if user_id not in registered_users_db or registered_users_db[user_id].get("status") != "verified":
+    await message.answer("❌ ዋሌትዎ ገና በአድሚን አልጸደቀም።")
+    return
+
   await message.answer(
       "💳 ያገኙትን ኮይን ወደ እውነተኛ ገንዘብ (ብር) በመቀየር ወደ ባንክ አካውንትዎ"
       " ለማስተላለፍ የሚፈልጉትን የኮይን መጠን ይጻፉ፦\n\nምሳሌ፦ `50`",
@@ -719,7 +736,10 @@ async def withdraw_money(message: types.Message):
 @dp.message(F.text == "ገንዘብ ማስተላለፍ (P2P)")
 async def p2p_transfer_prompt(message: types.Message):
   user_id = message.from_user.id
-  # ሪኮርድ ለማድረግ ማሳወቂያ ለአድሚን እንዲደርስ ማድረግ እንችላለን
+  if user_id not in registered_users_db or registered_users_db[user_id].get("status") != "verified":
+    await message.answer("❌ ዋሌትዎ ገና በአድሚን አልጸደቀም።")
+    return
+
   await message.answer(
       "🔄 ገንዘብ ለሌላ ተጠቃሚ ለማስተላለፍ የውሃ ማስተላለፊያ ትዕዛዝ ይጠቀሙ።"
   )
@@ -729,7 +749,7 @@ async def p2p_transfer_prompt(message: types.Message):
     pass
 
 
-# ================= 4. ENHANCED ADMIN COMMANDS & CONTROLS =================
+# ================= 4. ENHANCED ADMIN CONTROLS =================
 
 @dp.message(Command("admin"))
 async def admin_panel(message: types.Message):
@@ -761,7 +781,7 @@ async def admin_stats_callback(callback: types.CallbackQuery):
   await callback.message.answer(
       f"📊 **የቦቱ አጠቃላይ ስታቲስቲክስ**\n\n"
       f"• አጠቃላይ የተመዘገቡ ተጠቃሚዎች፦ **{total_users}**\n"
-      f"• የተረጋገጡ (Verified) ተጠቃሚዎች፦ **{verified_users}**\n"
+      f"• የተረጋገጡ (Verified) ዋሌቶች፦ **{verified_users}**\n"
       f"• የአሁኑ የኮይን ዋጋ፦ **{coin_rate_db['coin_price']} ብር**"
   )
   await callback.answer()
@@ -803,7 +823,13 @@ async def admin_lottery_draw_callback(callback: types.CallbackQuery):
     await callback.answer()
     return
     
-  winner_id = random.choice(list(registered_users_db.keys()))
+  verified_list = [uid for uid, u in registered_users_db.items() if u.get("status") == "verified"]
+  if not verified_list:
+    await callback.message.answer("❌ እስካሁን የተረጋገጠ (Verified) ተጠቃሚ የለም።")
+    await callback.answer()
+    return
+
+  winner_id = random.choice(verified_list)
   winner_info = registered_users_db[winner_id]
   
   await callback.message.answer(
@@ -843,7 +869,7 @@ async def process_new_coin_price(message: types.Message, state: FSMContext):
     await message.answer("❌ እባክዎ ትክክለኛ ቁጥር ብቻ ያስገቡ።")
 
 
-# አድሚን ተጠቃሚን የማረጋገጥ፣ የመሰረዝ ወይም የማግድ እርምጃዎች (Verify, Cancel, Block Callbacks)
+# አድሚን ተጠቃሚን የማረጋገጥ፣ የመሰረዝ ወይም የማግድ እርምጃዎች (Verify, Cancel, Block)
 @dp.callback_query(F.data.startswith("admin_verify_"))
 async def admin_verify_user(callback: types.CallbackQuery):
   if callback.from_user.id != ADMIN_ID:
@@ -851,12 +877,28 @@ async def admin_verify_user(callback: types.CallbackQuery):
   user_id = int(callback.data.split("_")[2])
   if user_id in registered_users_db:
     registered_users_db[user_id]["status"] = "verified"
-    await callback.message.edit_caption(caption=callback.message.caption + "\n\n✅ **[STATUS: VERIFIED]**")
+    await callback.message.edit_caption(caption=callback.message.caption + "\n\n✅ **[STATUS: VERIFIED & WALLET OPENED]**")
+    
+    # ተጠቃሚው ቬሪፋይ ሲደረግ ዋሌቱ ይከፈታል እና ሜኑ ይላካለታል
+    main_menu = types.ReplyKeyboardMarkup(
+        keyboard=[
+            [
+                types.KeyboardButton(text="ገንዘብ ማስገባት (Deposit)"),
+                types.KeyboardButton(text="ብር ወደ ኮይን ቀይር"),
+            ],
+            [
+                types.KeyboardButton(text="ሎተሪ መግዛት"),
+                types.KeyboardButton(text="ኮይን ወደ ብር ቀይር (Withdraw)"),
+            ],
+            [types.KeyboardButton(text="ገንዘብ ማስተላለፍ (P2P)")],
+        ],
+        resize_keyboard=True,
+    )
     try:
-      await bot.send_message(user_id, "🎉 የተላከው መረጃዎ በአድሚን ተረጋግጧል! አሁን ሙሉ አገልግሎቱን መጠቀም ይችላሉ።")
+      await bot.send_message(user_id, "🎉 እንኳን ደስ አለዎት! መረጃዎ እና መታወቂያዎ በአድሚን ተረጋግጧል። አሁን የዋሌት አካውንትዎ ተከፍቷል ሙሉ አገልግሎቱን መጠቀም ይችላሉ!", reply_markup=main_menu)
     except:
       pass
-  await callback.answer("ተጠቃሚው ተረጋግጧል!")
+  await callback.answer("ተጠቃሚው ተረጋግጧል፣ ዋሌቱ ተከፍቷል!")
 
 
 @dp.callback_query(F.data.startswith("admin_cancel_"))
@@ -868,7 +910,7 @@ async def admin_cancel_user(callback: types.CallbackQuery):
     registered_users_db[user_id]["status"] = "rejected"
     await callback.message.edit_caption(caption=callback.message.caption + "\n\n❌ **[STATUS: REJECTED/CANCELLED]**")
     try:
-      await bot.send_message(user_id, "❌ ምዝገባዎ በአድሚን ተሰርዟል። እባክዎ እንደገና በትክክል ይመዝገቡ።")
+      await bot.send_message(user_id, "❌ የላኩት መታወቂያ ወይም መረጃ ትክክለኛ አለመሆኑ ተረጋግጦ ምዝገባዎ በአድሚን ተሰርዟል። እባክዎ `/start` ብለው እንደገና በትክክል ይመዝገቡ።", parse_mode="Markdown")
     except:
       pass
   await callback.answer("ምዝገባው ተሰርዟል!")
@@ -894,8 +936,9 @@ async def admin_users_count(message: types.Message):
   if message.from_user.id != ADMIN_ID:
     return
   total_users = len(registered_users_db)
+  verified_users = sum(1 for u in registered_users_db.values() if u.get("status") == "verified")
   await message.answer(
-      f"📊 **የተጠቃሚዎች መረጃ**\n\nአጠቃላይ የተመዘገቡ ተጠቃሚዎች ብዛት፦ **{total_users}**"
+      f"📊 **የተጠቃሚዎች መረጃ**\n\n- አጠቃላይ የተመዘገቡ፦ **{total_users}**\n- የተረጋገጡ (Verified): **{verified_users}**"
   )
 
 
@@ -944,7 +987,7 @@ async def start_web_server():
   app = web.Application()
   app.router.add_get("/", handle_ping)
   runner = web.AppRunner(app)
-  app_runner = await runner.setup()
+  await runner.setup()
   port = int(os.environ.get("PORT", 10000))
   site = web.TCPSite(runner, "0.0.0.0", port)
   await site.start()
