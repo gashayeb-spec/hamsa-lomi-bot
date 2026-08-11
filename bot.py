@@ -28,17 +28,31 @@ storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 
 
-# የምዝገባ እና የቋንቋ ምርጫ እርምጃዎች (States)
+# የምዝገባ እርምጃዎች (Single-Flow Registration States)
 class RegistrationStates(StatesGroup):
   waiting_for_language = State()
   waiting_for_name = State()
   waiting_for_phone = State()
   waiting_for_bank = State()
-  waiting_for_id_document = State()
+  waiting_for_id_front = State()
+  waiting_for_id_back = State()
   waiting_for_face_photo = State()
   waiting_for_email = State()
   waiting_for_password = State()
   confirm_password = State()
+  final_review = State()
+
+
+# ትክክለኛ የኢሜይል ማረጋገጫ
+def is_valid_email(email: str) -> bool:
+  pattern = r"^[\w\.-]+@[\w\.-]+\.\w+$"
+  return bool(re.match(pattern, email))
+
+
+# ትክክለኛ የስልክ ቁጥር ማረጋገጫ (+2519, 09, +2517, 07)
+def is_valid_phone(phone: str) -> bool:
+  pattern = r"^(\+2519|09|\+2517|07)\d{8}$"
+  return bool(re.match(pattern, phone))
 
 
 # የይለፍ ቃል ጥንካሬ ማረጋገጫ
@@ -59,7 +73,6 @@ def is_strong_password(password: str) -> bool:
 async def cmd_start(message: types.Message, state: FSMContext):
   user_name = message.from_user.full_name
 
-  # የፊት ገጽ (Front Page / Welcome Message)
   welcome_text = (
       f"🌟 ሰላም **{user_name}**! ወደ ትክክለኛው የባንክ እና የሎተሪ አገልግሎት በደህና"
       " መጡ።\n\n"
@@ -82,7 +95,6 @@ async def cmd_start(message: types.Message, state: FSMContext):
 
 @dp.callback_query(F.data == "welcome_start")
 async def process_welcome_start(callback: types.CallbackQuery, state: FSMContext):
-  # ቋንቋ ማስመረጫ
   lang_keyboard = InlineKeyboardMarkup(
       inline_keyboard=[
           [
@@ -107,12 +119,13 @@ async def process_language_selection(callback: types.CallbackQuery, state: FSMCo
 
   if lang == "am":
     text = (
-        "🇪🇹 አማርኛ ተመርጧል።\n\nአካውንት መክፈት ለመጀመር እባክዎ ሙሉ ስምዎን ይጻፉ"
+        "🇪🇹 አማርኛ ተመርጧል።\n\nምዝገባውን ለመጀመር እባክዎ ሙሉ ስምዎን ያስገቡ"
         " (ከቴሌግራም ስምዎ ጋር ሊመሳሰል ይችላል)፦"
     )
   else:
     text = (
-        "🇬🇧 English selected.\n\nPlease enter your full name to start registration:"
+        "🇬🇧 English selected.\n\nPlease enter your full name to start"
+        " registration:"
     )
 
   await callback.message.edit_text(text)
@@ -124,17 +137,24 @@ async def process_language_selection(callback: types.CallbackQuery, state: FSMCo
 async def process_name(message: types.Message, state: FSMContext):
   await state.update_data(full_name=message.text)
   await message.answer(
-      "እባክዎ ስልክ ቁጥርዎን ያስገቡ (ለምሳሌ፦ +2519xxxxxxxx)፦"
+      "ስልክ ቁጥርዎን ያስገቡ (ለምሳሌ፦ 09xxxxxxxx ወይም 07xxxxxxxx ወይም በ +251"
+      " ይጀምሩ)፦"
   )
   await state.set_state(RegistrationStates.waiting_for_phone)
 
 
 @dp.message(RegistrationStates.waiting_for_phone)
-async def process_phone(message: types.Message, state: FSMContext):
-  await state.update_data(phone_number=message.text)
-  await message.answer(
-      "እባክዎ የባንክ አካውንት ቁጥርዎን (ወይም የቴሌብር አካውንት) ያስገቡ፦"
-  )
+async def process_phone(message: types.Message, state: FsmContext if 'FsmContext' in globals() else FSMContext):
+  phone = message.text.strip()
+  if not is_valid_phone(phone):
+    await message.answer(
+        "❌ ያስገቡት ስልክ ቁጥር ትክክለኛ አይደለም። እባክዎ በ 09፣ 07 ወይም በ +2519፣"
+        " +2517 የሚጀምር ትክክለኛ ስልክ ቁጥር እንደገና ያስገቡ፦"
+    )
+    return
+
+  await state.update_data(phone_number=phone)
+  await message.answer("የባንክ አካውንት ቁጥርዎን (ወይም የቴሌብር አካውንት) ያስገቡ፦")
   await state.set_state(RegistrationStates.waiting_for_bank)
 
 
@@ -142,17 +162,29 @@ async def process_phone(message: types.Message, state: FSMContext):
 async def process_bank(message: types.Message, state: FSMContext):
   await state.update_data(bank_account=message.text)
   await message.answer(
-      "እባክዎ የብሔራዊ መታወቂያ (National ID) ወይም የፓስፖርት ፎቶ ይላኩ (Document):"
+      "ቲኬትዎ/መታወቂያዎ ትክክለኛ መሆኑን ለማረጋገጥ፦\n\n🪪 **1. የብሔራዊ መታወቂያ (National ID)"
+      " ወይም ፓስፖርት የፊት ገጽ (Front Photo)** ፎቶ ይላኩ:"
   )
-  await state.set_state(RegistrationStates.waiting_for_id_document)
+  await state.set_state(RegistrationStates.waiting_for_id_front)
 
 
-@dp.message(RegistrationStates.waiting_for_id_document, F.photo)
-async def process_id_doc(message: types.Message, state: FSMContext):
+@dp.message(RegistrationStates.waiting_for_id_front, F.photo)
+async def process_id_front(message: types.Message, state: FSMContext):
   photo_id = message.photo[-1].file_id
-  await state.update_data(id_document=photo_id)
+  await state.update_data(id_front=photo_id)
   await message.answer(
-      "አሁን ደግሞ ፊትዎ ከሰነዱ ጋር በግልጽ የሚታይበትን የራስዎን ፎቶ (Face Photo) ይላኩ:"
+      "🪪 **2. የመታወቂያው የኋላ ገጽ (Back Photo)** ፎቶ ይላኩ:"
+  )
+  await state.set_state(RegistrationStates.waiting_for_id_back)
+
+
+@dp.message(RegistrationStates.waiting_for_id_back, F.photo)
+async def process_id_back(message: types.Message, state: FSMContext):
+  photo_id = message.photo[-1].file_id
+  await state.update_data(id_back=photo_id)
+  await message.answer(
+      "📸 አሁን ደግሞ ፊትዎ ከሰነዱ ጋር በግልጽ የሚታይበትን **የራስዎን ፎቶ (Face Photo)**"
+      " ይላኩ:"
   )
   await state.set_state(RegistrationStates.waiting_for_face_photo)
 
@@ -161,17 +193,23 @@ async def process_id_doc(message: types.Message, state: FSMContext):
 async def process_face_photo(message: types.Message, state: FSMContext):
   photo_id = message.photo[-1].file_id
   await state.update_data(face_photo=photo_id)
-  await message.answer(
-      "እባክዎ የሚጠቀሙበትን ትክክለኛ ኢሜይል አድራሻ (Email) ያስገቡ:"
-  )
+  await message.answer("📧 የሚጠቀሙበትን ትክክለኛ ኢሜይል አድራሻ (Email) ያስገቡ:")
   await state.set_state(RegistrationStates.waiting_for_email)
 
 
 @dp.message(RegistrationStates.waiting_for_email)
 async def process_email(message: types.Message, state: FSMContext):
-  await state.update_data(email=message.text)
+  email = message.text.strip()
+  if not is_valid_email(email):
+    await message.answer(
+        "❌ ያስገቡት ኢሜይል ትክክለኛ ፎርማት የለውም (ለምሳሌ፦ name@gmail.com)። እባክዎ"
+        " ትክክለኛ ኢሜይል እንደገና ያስገቡ፦"
+    )
+    return
+
+  await state.update_data(email=email)
   await message.answer(
-      "አሁን ጠንካራ የይለፍ ቃል (Password) ይፍጠሩ።\n\nሕጎች፦\n- ርዝመቱ ከ 4 እስከ 16"
+      "🔒 ጠንካራ የይለፍ ቃል (Password) ይፍጠሩ።\n\nሕጎች፦\n- ርዝመቱ ከ 4 እስከ 16"
       " ቁምፊዎች መሆን አለበት።\n- ፊደላትን እና ቁጥሮችን ማካተት አለበት።"
   )
   await state.set_state(RegistrationStates.waiting_for_password)
@@ -182,7 +220,7 @@ async def process_password(message: types.Message, state: FSMContext):
   password = message.text
   if not is_strong_password(password):
     await message.answer(
-        "ያስገቡት የይለፍ ቃል ህጉን አልጠበቀም። እባክዎ ከ 4 እስከ 16 ቁምፊዎች (ፊደል እና"
+        "❌ ያስገቡት የይለፍ ቃል ህጉን አልጠበቀም። እባክዎ ከ 4 እስከ 16 ቁምፊዎች (ፊደል እና"
         " ቁጥር) በመጠቀም እንደገና ይሞክሩ፦"
     )
     return
@@ -197,11 +235,40 @@ async def process_confirm_password(message: types.Message, state: FSMContext):
   data = await state.get_data()
   if data["password"] != message.text:
     await message.answer(
-        "የይለፍ ቃሎቹ አይመሳሰሉም። እባክዎ የመጀመሪያውን የይለፍ ቃል እንደገና ያስገቡ:"
+        "❌ የይለፍ ቃሎቹ አይመሳሰሉም። እባክዎ የመጀመሪያውን የይለፍ ቃል እንደገና ያስገቡ:"
     )
     await state.set_state(RegistrationStates.waiting_for_password)
     return
 
+  # ሁሉም መረጃዎች ተሞልተዋል - የማጠቃለያ ፎርም (Summary Review) እናቀርባለን
+  summary_text = (
+      "📋 **የመረጃዎ ማጠቃለያ (Registration Summary)**\n\n"
+      f"• ሙሉ ስም፦ {data.get('full_name')}\n"
+      f"• ስልክ ቁጥር፦ {data.get('phone_number')}\n"
+      f"• የባንክ አካውንት፦ {data.get('bank_account')}\n"
+      f"• ኢሜይል፦ {data.get('email')}\n\n"
+      "እባክዎ መረጃዎ ትክክል መሆኑን ያረጋግጡ። መመዝገብ ከፈለጉ ከታች ያለውን **'አረጋግጥ እና"
+      " ላክ (Submit)'** ቁልፍ ይጫኑ!"
+  )
+
+  keyboard = InlineKeyboardMarkup(
+      inline_keyboard=[
+          [
+              InlineKeyboardButton(
+                  text="✅ አረጋግጥ እና ላክ (Submit)", callback_data="submit_reg"
+              )
+          ]
+      ]
+  )
+
+  await message.answer(summary_text, reply_markup=keyboard, parse_mode="Markdown")
+  await state.set_state(RegistrationStates.final_review)
+
+
+@dp.callback_query(
+    F.data == "submit_reg", RegistrationStates.final_review
+)
+async def process_final_submit(callback: types.CallbackQuery, state: FSMContext):
   await state.clear()
 
   main_menu = types.ReplyKeyboardMarkup(
@@ -219,11 +286,14 @@ async def process_confirm_password(message: types.Message, state: FSMContext):
       resize_keyboard=True,
   )
 
-  await message.answer(
-      "🎉 ምዝገባዎ በተሳካ ሁኔታ ተጠናቋል! አድሚኑ መረጃዎን አረጋግጦ ሲያጸድቀው ሙሉ አገልግሎቱን"
-      " መጠቀም ይጀምራሉ። ከታች ያሉትን አማራጮች መጠቀም ይችላሉ፦",
-      reply_markup=main_menu,
+  await callback.message.edit_text(
+      "🎉 ምዝገባዎ በተሳካ ሁኔታ ተጠናቆ ወደ አድሚን ተልኳል! አድሚኑ መረጃዎን አረጋግጦ ሲያጸድቀው"
+      " ሙሉ አገልግሎቱን መጠቀም ይጀምራሉ።"
   )
+  await callback.message.answer(
+      "ከታች ያሉትን ዋና ዋና አማራጮች መጠቀም ይችላሉ፦", reply_markup=main_menu
+  )
+  await callback.answer()
 
 
 # ================= 2. DEPOSIT & CHAPA INTEGRATION =================
